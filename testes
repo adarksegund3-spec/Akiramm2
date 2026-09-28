@@ -1,7 +1,8 @@
 --[[
 ═══════════════════════════════════════════════════════════════
-   AKZ MENU mm2  —  v1.3
-   + Foto de fundo (universo) ativada por padrão
+   AKZ MENU mm2  —  v1.2
+   Auto Kill: loop por 1s em cada alvo • Alvo configurável
+   + Auto Murder e Pegar Gun continuam como ações
 ═══════════════════════════════════════════════════════════════
 --]]
 
@@ -52,18 +53,12 @@ local ROLE_COLORS = {
     Innocent = Color3.fromRGB(50, 205, 50),
 }
 
+-- ⚙️ Layouts
 local LAYOUTS = {
     ["Em pé"]  = UDim2.new(0, 460, 0, 420),
     ["Deitado"] = UDim2.new(0, 660, 0, 340),
 }
 local CurrentLayout = "Em pé"
-
--- 🖼️ Foto de fundo (universo já ativado)
-local BgConfig = {
-    Ativo        = true,
-    ImageId      = "rbxassetid://6756223667",
-    OverlayAlpha = 0.55,
-}
 
 local Config = {
     ESPEnabled=false, Highlight=false, HighlightFill=false, HighlightOutline=false,
@@ -111,14 +106,15 @@ local GunDropConfig = {
 }
 local espCache = {}
 
+-- ⚙️ Auto Kill
 local AutoKillConfig = {
     Ativo = false,
-    Alvo  = "Inocentes",
+    Alvo  = "Inocentes",   -- "Inocentes" | "Sheriff" | "Murder"
     Rodando = false,
-    Distancia = 12,
-    AlvoAtual = nil,
+    Distancia = 12,        -- studs de distância pro Murder
+    AlvoAtual = nil,       -- nome do player atual
     Trocas = 0,
-    Highlight = nil,
+    Highlight = nil,       -- Highlight no alvo atual
 }
 
 local KNIFE_KEYWORDS = {"knife","faca","blade","lâmina","lamina","punhal","dagger"}
@@ -328,7 +324,6 @@ menuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 menuFrame.Size = LAYOUTS[CurrentLayout]
 menuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 menuFrame.BackgroundColor3 = BG
-menuFrame.BackgroundTransparency = 0.25
 menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.ClipsDescendants = true
@@ -343,57 +338,9 @@ local menuStroke = Instance.new("UIStroke", menuFrame)
 menuStroke.Color = STROKE_CLR
 menuStroke.Thickness = 1
 
---═══════════════════════════════════════════════════════════════
---  🖼️ FOTO DE FUNDO (ImageLabel + overlay)
---═══════════════════════════════════════════════════════════════
-local bgImage = Instance.new("ImageLabel")
-bgImage.Name = "BgImage"
-bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.BackgroundTransparency = 1
-bgImage.BorderSizePixel = 0
-bgImage.ScaleType = Enum.ScaleType.Crop
-bgImage.Image = BgConfig.ImageId
-bgImage.ImageTransparency = 0
-bgImage.Visible = BgConfig.Ativo
-bgImage.ZIndex = 9
-bgImage.Parent = menuFrame
-Instance.new("UICorner", bgImage).CornerRadius = UDim.new(0, 12)
-
-local bgOverlay = Instance.new("Frame")
-bgOverlay.Name = "BgOverlay"
-bgOverlay.Size = UDim2.new(1, 0, 1, 0)
-bgOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-bgOverlay.BackgroundTransparency = 1 - BgConfig.OverlayAlpha
-bgOverlay.BorderSizePixel = 0
-bgOverlay.Visible = BgConfig.Ativo
-bgOverlay.ZIndex = 9
-bgOverlay.Parent = menuFrame
-Instance.new("UICorner", bgOverlay).CornerRadius = UDim.new(0, 12)
-
-local function aplicarBg()
-    if BgConfig.Ativo and BgConfig.ImageId ~= "" then
-        bgImage.Image = BgConfig.ImageId
-        bgImage.Visible = true
-        bgOverlay.Visible = true
-        bgOverlay.BackgroundTransparency = 1 - BgConfig.OverlayAlpha
-        TweenService:Create(bgImage, TweenInfo.new(0.3), {ImageTransparency = 0}):Play()
-        TweenService:Create(menuFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0.25}):Play()
-    else
-        TweenService:Create(bgImage, TweenInfo.new(0.3), {ImageTransparency = 1}):Play()
-        task.delay(0.3, function()
-            if not BgConfig.Ativo then
-                bgImage.Visible = false
-                bgOverlay.Visible = false
-            end
-        end)
-        TweenService:Create(menuFrame, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
-    end
-end
-
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 40)
 header.BackgroundColor3 = BG_HEADER
-header.BackgroundTransparency = 0.15
 header.BorderSizePixel = 0
 header.ZIndex = 11
 header.Parent = menuFrame
@@ -428,7 +375,6 @@ local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, 0, 0, 34)
 tabBar.Position = UDim2.new(0, 0, 0, 40)
 tabBar.BackgroundColor3 = BG_TAB
-tabBar.BackgroundTransparency = 0.25
 tabBar.BorderSizePixel = 0
 tabBar.ZIndex = 11
 tabBar.Parent = menuFrame
@@ -522,7 +468,6 @@ local function createBlock(parent, order, titulo)
     block.Size = UDim2.new(1, -8, 0, 0)
     block.AutomaticSize = Enum.AutomaticSize.Y
     block.BackgroundColor3 = BG_BLOCK
-    block.BackgroundTransparency = 0.15
     block.BorderSizePixel = 0
     block.LayoutOrder = order
     block.Parent = parent
@@ -557,7 +502,6 @@ local function createToggle(parent, order, label, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 32)
     row.BackgroundColor3 = BG_ROW
-    row.BackgroundTransparency = 0.2
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -609,7 +553,6 @@ local function createOptionRow(parent, order, label, options, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 34)
     row.BackgroundColor3 = BG_ROW
-    row.BackgroundTransparency = 0.2
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -673,7 +616,6 @@ local function createSlider(parent, order, label, minV, maxV, initial, isFloat, 
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 42)
     row.BackgroundColor3 = BG_ROW
-    row.BackgroundTransparency = 0.2
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -760,7 +702,6 @@ local function createButton(parent, order, label, onClick)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 34)
     btn.BackgroundColor3 = Color3.fromRGB(34, 34, 42)
-    btn.BackgroundTransparency = 0.15
     btn.BorderSizePixel = 0
     btn.Text = label
     btn.Font = Enum.Font.GothamBold
@@ -774,6 +715,7 @@ local function createButton(parent, order, label, onClick)
     st.Color = Theme.Accent
     st.Thickness = 1
     st.Transparency = 0.6
+
     btn.MouseButton1Click:Connect(function()
         TweenService:Create(st, TweenInfo.new(0.1), {Transparency = 0}):Play()
         task.delay(0.15, function()
@@ -784,55 +726,12 @@ local function createButton(parent, order, label, onClick)
     return btn
 end
 
-local function createTextBox(parent, order, label, placeholder, initialText, onChange)
-    local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, 46)
-    row.BackgroundColor3 = BG_ROW
-    row.BackgroundTransparency = 0.2
-    row.BorderSizePixel = 0
-    row.LayoutOrder = order
-    row.Parent = parent
-    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
-    local lbl = Instance.new("TextLabel")
-    lbl.Size = UDim2.new(1, -20, 0, 16)
-    lbl.Position = UDim2.new(0, 12, 0, 4)
-    lbl.BackgroundTransparency = 1
-    lbl.Text = label
-    lbl.Font = Enum.Font.GothamMedium
-    lbl.TextSize = 11
-    lbl.TextColor3 = TEXT
-    lbl.TextXAlignment = Enum.TextXAlignment.Left
-    lbl.Parent = row
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(1, -24, 0, 22)
-    box.Position = UDim2.new(0, 12, 0, 20)
-    box.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    box.BorderSizePixel = 0
-    box.Text = initialText or ""
-    box.PlaceholderText = placeholder or ""
-    box.PlaceholderColor3 = TEXT_DIM
-    box.TextColor3 = TEXT
-    box.Font = Enum.Font.GothamMedium
-    box.TextSize = 11
-    box.TextXAlignment = Enum.TextXAlignment.Left
-    box.ClearTextOnFocus = false
-    box.Parent = row
-    Instance.new("UICorner", box).CornerRadius = UDim.new(0, 6)
-    local pad = Instance.new("UIPadding", box)
-    pad.PaddingLeft = UDim.new(0, 8)
-    pad.PaddingRight = UDim.new(0, 8)
-    box.FocusLost:Connect(function()
-        if onChange then onChange(box.Text) end
-    end)
-    return box
-end
-
 local function Transp_AplicarEm(obj)
     if not obj:IsA("GuiObject") then return end
     local bt = obj.BackgroundTransparency
     if bt >= 0.9 then return end
     if obj:GetAttribute("AKZ_OrigBT") == nil then obj:SetAttribute("AKZ_OrigBT", bt) end
-    obj.BackgroundTransparency = math.min(0.92, bt + 0.3)
+    obj.BackgroundTransparency = math.min(0.88, bt + 0.5)
 end
 
 local function Transp_RestaurarEm(obj)
@@ -847,8 +746,10 @@ end
 local function Transp_Aplicar(ativar)
     TranspState.ativo = ativar
     if ativar then
+        menuFrame.BackgroundTransparency = 0.4
         for _, obj in ipairs(menuFrame:GetDescendants()) do Transp_AplicarEm(obj) end
     else
+        menuFrame.BackgroundTransparency = 0
         for _, obj in ipairs(menuFrame:GetDescendants()) do Transp_RestaurarEm(obj) end
     end
 end
@@ -1089,6 +990,7 @@ local function lockOn(targetPart)
     end
 end
 
+--════════════ Noclip / Anti-AFK ════════════
 local function Noclip_Start(force)
     if force then NoclipState.ForceState = true end
     if NoclipState.Conn then return end
@@ -1138,6 +1040,7 @@ local function AntiAFK_Set(ativo)
     end
 end
 
+--════════════ Farm Teleporte ════════════
 local Farm = FarmConfig
 
 local function Farm_PegarContainer()
@@ -1401,6 +1304,7 @@ local function Farm_Iniciar()
     end)
 end
 
+--════════════ Farm Físico ════════════
 local function FF_CleanupConns()
     if FarmFisico.HeartbeatConn then FarmFisico.HeartbeatConn:Disconnect(); FarmFisico.HeartbeatConn = nil end
     if FarmFisico.ConnAdded then FarmFisico.ConnAdded:Disconnect(); FarmFisico.ConnAdded = nil end
@@ -1685,6 +1589,7 @@ local function FarmFisico_Iniciar()
     showToast("🌾 FARM FÍSICO", "Noclip ativado (não trava em paredes)", SUCCESS_CLR)
 end
 
+--════════════ GunDrop ════════════
 local GunDrop = GunDropConfig
 
 local function ehGun(obj)
@@ -1767,6 +1672,7 @@ local function GunDrop_VarrerAgora()
     end
 end
 
+--════════════ Auto Kill (loop por 1s em cada alvo) ════════════
 local function clearAlvoHighlight()
     if AutoKillConfig.Highlight then
         pcall(function() AutoKillConfig.Highlight:Destroy() end)
@@ -1796,6 +1702,7 @@ local function AutoKill_Parar()
     clearAlvoHighlight()
 end
 
+-- Lista de players vivos no mapa, filtrados pelo alvo escolhido
 local function AutoKill_ListarAlvos()
     local lista = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1807,13 +1714,16 @@ local function AutoKill_ListarAlvos()
                 if AutoKillConfig.Alvo == "Inocentes" and role == "Innocent" then ok = true end
                 if AutoKillConfig.Alvo == "Sheriff"   and role == "Sheriff"  then ok = true end
                 if AutoKillConfig.Alvo == "Murder"    and role == "Murderer" then ok = true end
-                if ok then table.insert(lista, p) end
+                if ok then
+                    table.insert(lista, p)
+                end
             end
         end
     end
     return lista
 end
 
+-- Teleporta em cima do alvo (100%)
 local function AutoKill_TpEmCima(target)
     local char = LocalPlayer.Character
     if not char then return false end
@@ -1825,6 +1735,7 @@ local function AutoKill_TpEmCima(target)
     return true
 end
 
+-- Teleporta PERTO do alvo (12 studs atrás)
 local function AutoKill_TpPerto(target)
     local char = LocalPlayer.Character
     if not char then return false end
@@ -1834,8 +1745,11 @@ local function AutoKill_TpPerto(target)
     if not tHRP then return false end
     local lookVec = tHRP.CFrame.LookVector
     local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-    if flatLook.Magnitude < 0.1 then flatLook = Vector3.new(0, 0, -1)
-    else flatLook = flatLook.Unit end
+    if flatLook.Magnitude < 0.1 then
+        flatLook = Vector3.new(0, 0, -1)
+    else
+        flatLook = flatLook.Unit
+    end
     local destino = tHRP.Position - flatLook * AutoKillConfig.Distancia + Vector3.new(0, 3, 0)
     pcall(function() char:PivotTo(CFrame.new(destino)) end)
     return true
@@ -1847,6 +1761,7 @@ local function AutoKill_Iniciar()
     AutoKillConfig.Ativo = true
     AutoKillConfig.Trocas = 0
     showToast("🗡️ AUTO KILL", "Modo: " .. AutoKillConfig.Alvo, SUCCESS_CLR)
+
     task.spawn(function()
         while AutoKillConfig.Ativo do
             local char = LocalPlayer.Character
@@ -1868,16 +1783,26 @@ local function AutoKill_Iniciar()
                             if tHum and tHum.Health > 0 then
                                 AutoKillConfig.AlvoAtual = t.DisplayName
                                 AutoKillConfig.Trocas = AutoKillConfig.Trocas + 1
+
+                                -- Escolhe a cor do ESP
                                 local corEsp
-                                if AutoKillConfig.Alvo == "Murder" then corEsp = ROLE_COLORS.Murderer
-                                elseif AutoKillConfig.Alvo == "Sheriff" then corEsp = ROLE_COLORS.Sheriff
-                                else corEsp = ROLE_COLORS.Innocent end
+                                if AutoKillConfig.Alvo == "Murder" then
+                                    corEsp = Color3.fromRGB(220, 40, 40)
+                                elseif AutoKillConfig.Alvo == "Sheriff" then
+                                    corEsp = Color3.fromRGB(40, 120, 255)
+                                else
+                                    corEsp = Color3.fromRGB(50, 205, 50)
+                                end
                                 applyAlvoHighlight(t, corEsp)
+
+                                -- Teleporta
                                 if AutoKillConfig.Alvo == "Murder" then
                                     AutoKill_TpPerto(t)
                                 else
                                     AutoKill_TpEmCima(t)
                                 end
+
+                                -- Espera 1 segundo
                                 task.wait(1)
                             end
                         end
@@ -1891,12 +1816,15 @@ local function AutoKill_Iniciar()
     end)
 end
 
+--════════════ Ação one-shot: Pegar Gun ════════════
 local function AcharGunMaisProxima()
     local char = LocalPlayer.Character
     if not char then return nil end
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
-    if GunDrop.UltimaGun and GunDrop.UltimaGun.Parent then return GunDrop.UltimaGun end
+    if GunDrop.UltimaGun and GunDrop.UltimaGun.Parent then
+        return GunDrop.UltimaGun
+    end
     local myPos = hrp.Position
     local melhor, melhorDist = nil, math.huge
     for _, obj in ipairs(workspace:GetDescendants()) do
@@ -1913,7 +1841,10 @@ end
 
 local function PegarGun()
     local gun = AcharGunMaisProxima()
-    if not gun then showToast("PEGAR GUN", "Nenhuma gun encontrada", DANGER_CLR); return end
+    if not gun then
+        showToast("PEGAR GUN", "Nenhuma gun encontrada", DANGER_CLR)
+        return
+    end
     local char = LocalPlayer.Character
     if not char then return end
     local pos = gun.Position + Vector3.new(0, 2.5, 0)
@@ -1929,6 +1860,7 @@ local function PegarGun()
     showToast("PEGAR GUN", "Teleportado pra gun", SUCCESS_CLR)
 end
 
+--════════════ Layout toggle ════════════
 local function setLayout(modo)
     if not LAYOUTS[modo] then return end
     CurrentLayout = modo
@@ -1937,6 +1869,7 @@ local function setLayout(modo)
     }):Play()
 end
 
+--════════════ Tema ════════════
 local function applyTheme(newColor)
     local oldAccent = Theme.Accent
     Theme.Accent = newColor
@@ -1965,7 +1898,6 @@ local function infoRow(parent, order, texto, cor)
     local c = Instance.new("Frame", parent)
     c.Size = UDim2.new(1, 0, 0, 28)
     c.BackgroundColor3 = BG_ROW
-    c.BackgroundTransparency = 0.2
     c.BorderSizePixel = 0
     c.LayoutOrder = order
     Instance.new("UICorner", c).CornerRadius = UDim.new(0, 6)
@@ -1986,7 +1918,7 @@ pcall(function() if identifyexecutor then executorNome = identifyexecutor() end 
 
 infoRow(infoBlock, 2, "👤  Jogador: " .. LocalPlayer.DisplayName, TEXT)
 infoRow(infoBlock, 3, "⚙️  Executor: " .. executorNome, TEXT)
-infoRow(infoBlock, 4, "📦  Versão: v1.3", TEXT)
+infoRow(infoBlock, 4, "📦  Versão: v1.2", TEXT)
 infoRow(infoBlock, 5, "👑  Desenvolvedor: Akira007p", Theme.Accent)
 infoRow(infoBlock, 6, "✅  Status: ● Ativo", SUCCESS_CLR)
 
@@ -2028,13 +1960,6 @@ end)
 
 createToggle(uiBlock, 3, "Interface Transparente", false, function(v) Transp_Aplicar(v) end)
 
--- 🖼️ Background image toggle
-createToggle(uiBlock, 4, "Imagem de Fundo", BgConfig.Ativo, function(v)
-    BgConfig.Ativo = v
-    aplicarBg()
-end)
-
--- Cor do menu
 local corLbl = Instance.new("TextLabel", uiBlock)
 corLbl.Size = UDim2.new(1, 0, 0, 18)
 corLbl.BackgroundTransparency = 1
@@ -2043,13 +1968,13 @@ corLbl.Font = Enum.Font.GothamMedium
 corLbl.TextSize = 11
 corLbl.TextColor3 = TEXT
 corLbl.TextXAlignment = Enum.TextXAlignment.Left
-corLbl.LayoutOrder = 5
+corLbl.LayoutOrder = 4
 
 local corGrid = Instance.new("Frame", uiBlock)
 corGrid.Size = UDim2.new(1, 0, 0, 0)
 corGrid.AutomaticSize = Enum.AutomaticSize.Y
 corGrid.BackgroundTransparency = 1
-corGrid.LayoutOrder = 6
+corGrid.LayoutOrder = 5
 
 local corGridLayout = Instance.new("UIGridLayout", corGrid)
 corGridLayout.CellSize = UDim2.new(0, 34, 0, 34)
@@ -2100,21 +2025,6 @@ for i, preset in ipairs(PRESETS) do
 end
 setActiveColorBorder(Theme.Accent)
 
--- 🖼️ Image ID textbox
-createTextBox(uiBlock, 7, "ID da Imagem (rbxassetid://...)", "rbxassetid://6756223667", BgConfig.ImageId, function(txt)
-    BgConfig.ImageId = txt
-    aplicarBg()
-    showToast("🖼️ IMAGEM", "Nova imagem aplicada", SUCCESS_CLR)
-end)
-
--- Slider pra opacidade da imagem
-createSlider(uiBlock, 8, "Escurecer imagem", 0, 0.9, BgConfig.OverlayAlpha, true, function(v)
-    BgConfig.OverlayAlpha = v
-    if BgConfig.Ativo then
-        bgOverlay.BackgroundTransparency = 1 - v
-    end
-end)
-
 --════════════ ABA ESP ════════════
 local espTab = createTab("ESP")
 local espContent = espTab.content
@@ -2164,7 +2074,6 @@ createSection(farmContent, 4, "CONTADOR")
 local farmStatusLbl = Instance.new("TextLabel")
 farmStatusLbl.Size = UDim2.new(1, -8, 0, 60)
 farmStatusLbl.BackgroundColor3 = BG_ROW
-farmStatusLbl.BackgroundTransparency = 0.2
 farmStatusLbl.BorderSizePixel = 0
 farmStatusLbl.LayoutOrder = 5
 farmStatusLbl.Text = "Coletadas: 0"
@@ -2191,6 +2100,7 @@ end)
 local funcTab = createTab("Funções")
 local funcContent = funcTab.content
 
+-- BLOCO GUN
 local gunBlock = createBlock(funcContent, 1, "🔫 GUN")
 createToggle(gunBlock, 2, "ESP Gun Drop", GunDrop.ESPAtivo, function(v)
     GunDrop.ESPAtivo = v
@@ -2206,7 +2116,6 @@ createToggle(gunBlock, 4, "Aviso de arma coletada", GunDrop.AvisoColeta, functio
 GunDrop_CountLbl = Instance.new("TextLabel", gunBlock)
 GunDrop_CountLbl.Size = UDim2.new(1, 0, 0, 30)
 GunDrop_CountLbl.BackgroundColor3 = BG_ROW
-GunDrop_CountLbl.BackgroundTransparency = 0.2
 GunDrop_CountLbl.BorderSizePixel = 0
 GunDrop_CountLbl.LayoutOrder = 5
 GunDrop_CountLbl.Text = "Detectadas: 0"
@@ -2217,12 +2126,17 @@ GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
 GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
 Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
 
-createButton(gunBlock, 6, "📌  Pegar Gun (teleportar)", function() PegarGun() end)
+createButton(gunBlock, 6, "📌  Pegar Gun (teleportar)", function()
+    PegarGun()
+end)
 
+-- BLOCO AUTO KILL
 local killBlock = createBlock(funcContent, 2, "🗡️ AUTO KILL")
+
 createToggle(killBlock, 2, "Auto Kill Ativado", false, function(v)
     if v then AutoKill_Iniciar() else AutoKill_Parar() end
 end)
+
 createOptionRow(killBlock, 3, "Alvo", {"Inocentes", "Sheriff", "Murder"}, AutoKillConfig.Alvo, function(v)
     AutoKillConfig.Alvo = v
     if AutoKillConfig.Ativo then
@@ -2232,14 +2146,16 @@ createOptionRow(killBlock, 3, "Alvo", {"Inocentes", "Sheriff", "Murder"}, AutoKi
     end
     showToast("🎯 ALVO", "Agora: " .. v, SUCCESS_CLR)
 end)
+
+-- Slider de distância (só faz diferença pro modo "Murder")
 createSlider(killBlock, 4, "Dist. do Murder (studs)", 5, 30, AutoKillConfig.Distancia, false, function(v)
     AutoKillConfig.Distancia = math.floor(v)
 end)
 
+-- Label de status
 local killStatusLbl = Instance.new("TextLabel", killBlock)
 killStatusLbl.Size = UDim2.new(1, 0, 0, 40)
 killStatusLbl.BackgroundColor3 = BG_ROW
-killStatusLbl.BackgroundTransparency = 0.2
 killStatusLbl.BorderSizePixel = 0
 killStatusLbl.LayoutOrder = 5
 killStatusLbl.Text = "Aguardando..."
@@ -2264,6 +2180,7 @@ task.spawn(function()
     end
 end)
 
+-- BLOCO UTILITÁRIOS
 local utilBlock = createBlock(funcContent, 3, "⚙️ UTILITÁRIOS")
 createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
 createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
@@ -2378,4 +2295,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[AKZ MENU mm2] v1.3 carregado 🔪")
+print("[AKZ MENU mm2] v1.2 carregado 🔪")
