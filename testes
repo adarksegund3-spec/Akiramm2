@@ -296,12 +296,15 @@ logoStroke.Thickness = 2
 
 -- [REMOVIDO] Bloco do UIGradient (logoGrad) — era o "fundo/imagem" da logo.
 
-local knifeIcon = Instance.new("TextLabel", logo)
-knifeIcon.Size = UDim2.new(1, 0, 1, 0)
-knifeIcon.BackgroundTransparency = 1
-knifeIcon.Text = "🔪"
-knifeIcon.TextScaled = true
-knifeIcon.Font = Enum.Font.GothamBold
+-- ═══════════════════════════════════════════════════════════════
+-- LOGO COM A IMAGEM (SUBSTITUI O EMOJI 🔪)
+-- ═══════════════════════════════════════════════════════════════
+local imgLogo = Instance.new("ImageLabel", logo)
+imgLogo.Size = UDim2.new(1, 0, 1, 0) -- Preenche o círculo da logo
+imgLogo.BackgroundTransparency = 1 -- Deixa o fundo transparente
+imgLogo.Image = "rbxassetid://82075192801584" -- ID do seu banner AKIRA SCRIPTS
+imgLogo.ScaleType = Enum.ScaleType.Fit -- Ajusta a imagem para não distorcer
+-- ═══════════════════════════════════════════════════════════════
 
 task.spawn(function()
     while logo.Parent do
