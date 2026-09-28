@@ -1,8 +1,6 @@
---[[
-    akz scripts - Flee the Facility
-    Desenvolvedor: akira007p
-    Discord: https://discord.gg/X9C5VReP4
-]]
+-- Script original: SourceOnce - Tracery (by Artsynia & fxengif)
+-- Modificado por: akira007p
+-- Discord: https://discord.gg/X9C5VReP4
 
 do --/* FTF */--
 local function c_caller(t, f, cf, ...)
@@ -14,9 +12,9 @@ local function ReadVMVersion()
 end
 local VM_Version = ReadVMVersion()
 local ugc = game or Game
-if not VM_Version:lower():find('luau') then ugc.GetService(ugc, 'Players').LocalPlayer:Kick('Este jogo não suporta Luau.') end
+if not VM_Version:lower():find('luau') then ugc.GetService(ugc, 'Players').LocalPlayer:Kick('Este jogo não suporta Luau. (usando LuaVM antiga)') end
 if not ugc:IsLoaded() then
-    local s: boolean = pcall(function()
+local s: boolean = pcall(function()
         ugc:Load()
         ugc.Loaded:Wait()
     end)
@@ -39,10 +37,9 @@ task.spawn(function()
 end)
 local t_str, t_num = tostring, tonumber
 local pack, unpack, insert = table.pack, table.unpack, table.insert
-
 function CallValidFunc(obj, key, ...)
     if not c_type("Instance", obj, true) then
-        return "Objeto inválido", false
+        return "Objeto inválido (não é uma Instance)", false
     end
     local args = pack(...)
     local s, r = pcall(function()
@@ -51,7 +48,6 @@ function CallValidFunc(obj, key, ...)
     if c_type("boolean", r) then return r end
     return s and r, s or `Erro: {t_str(r)}`, false
 end
-
 function RequestLoadRawHttp(RequestHttp, against, c, snotify)
     local r, s, su; s, su = xpcall(function()
         local rep, loads, y, valid = nil,
@@ -76,12 +72,12 @@ function RequestLoadRawHttp(RequestHttp, against, c, snotify)
         end
         r = pack(loads(rep)())
         return true
-    end, function(e)
+        end, function(e)
         if c_type("string", e) and not snotify then
             local BF = Instance.new("BindableFunction")
             BF.OnInvoke = function(c)
                 if c ~= "Fechar" and setclipboard then
-                    setclipboard("Https :- "..RequestHttp.."\nDetalhes :- "..e)
+                    setclipboard("Https :- "..RequestHttp.."\nDetalhes do Erro :- "..e)
                 end
             end
             FindServiceTery"StarterGui":SetCore("SendNotification", {Title = "Erro: "..RequestHttp, Text = e, Icon = "rbxassetid://7733701545", Duration = (1/0), Callback = BF, Button1 = "Copiar", Button2 = "Fechar"});BF:Destroy()
@@ -89,10 +85,9 @@ function RequestLoadRawHttp(RequestHttp, against, c, snotify)
     end)
     return (s and su) and unpack(r, 1, r.n)
 end
-
 local GetAdvanceS;xpcall(function()
     GetAdvanceS = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/GetSafeService", true, nil, true)
-end, function()
+    end, function()
     GetAdvanceS = FindServiceTery
 end)
 local getgenv_ = c_caller("function", getgenv, true, c_caller("table", getgenv))
@@ -112,9 +107,7 @@ task.spawn(function()
         end
     })
 end)
-
 RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/ScriptStarOZX/refs/heads/main/IfXDarkNotification.Lua", true);local tracery_notif=createNotification;createNotification=nil
-
 local function IsGame_Valid(): boolean
     local thisid = 893973440
     local s, r = pcall(function()
@@ -133,18 +126,15 @@ local function IsGame_Valid(): boolean
 end
 local PInfo = CallValidFunc(FindServiceTery("MarketplaceService"), "GetProductInfo", ugc.PlaceId)
 local GameName = c_type("table", PInfo) and PInfo.Name or "baba"
-if not IsGame_Valid() then return tracery_notif(GameName, "Este jogo está incorreto.", 3.5) end
+if not IsGame_Valid() then return tracery_notif(GameName, "Este jogo está incorreto, será que pegamos o certo?", 3.5) end
 tracery_notif("Carregando", "Aguarde...", 3.5)
-
 local why = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/Function/RBXSignal.luau", true, nil, true)
 pcall(why)
-
 -------------------------------------------------------
 local UiGit, UiRaw = "https://github.com/ActualMasterOogway/Fluent-Renewed", "https://raw.githubusercontent.com/ActualMasterOogway/Fluent-Renewed"
 local Fluent = RequestLoadRawHttp(UiGit.."/releases/latest/download/Fluent.luau", true)
 local SaveManager = RequestLoadRawHttp(UiRaw.."/refs/heads/main/Addons/SaveManager.luau", true)
 local InterfaceManager = RequestLoadRawHttp(UiRaw.."/refs/heads/main/Addons/InterfaceManager.luau", true)
-
 local SWorkspace = FindServiceTery("Workspace")
 local SLighting = FindServiceTery("Lighting")
 local SUis = FindServiceTery("UserInputService")
@@ -153,20 +143,17 @@ local SRunService = FindServiceTery("RunService")
 local SPlayers = FindServiceTery("Players")
 local SReplicatedStorage = FindServiceTery("ReplicatedStorage")
 local RemoteEvent = SReplicatedStorage:FindFirstChild("RemoteEvent") or SReplicatedStorage:WaitForChild("RemoteEvent", 2)
-
 Genv.SHub.Notify = Genv.SHub.Notify or {}
 Genv.SHub.Anti = Genv.SHub.Anti or {}
 Genv.SHub.Toggle = Genv.SHub.Toggle or {}
 Genv.SHub.TaskSignal = c_caller("function", get_hook_connections, 0) or {}
-
 task.spawn(function()
     pcall(function()
-        for s in pairs(Genv.SHub.TaskSignal) do
-            if s then s:Disconnect() end
-        end
+            for s in pairs(Genv.SHub.TaskSignal) do
+                if s then s:Disconnect() end
+            end
     end)
 end)
-
 local function find_instance(it, was)
     local love, cute = typeof(it), string.lower(was)
     if love and cute then
@@ -182,9 +169,8 @@ local function find_instance(it, was)
         end
         return angel, angel ~= nil
     end
-    return 'não encontrado', false
+    return 'não encontrado, quer tentar de novo?', false
 end
-
 function findroot_or(sorry, marries)
     if not (sorry and sorry.Parent) then return end
     local can, we, talk = nil, sorry:FindFirstChildWhichIsA('Humanoid')
@@ -192,7 +178,9 @@ function findroot_or(sorry, marries)
         if we then
             talk = pcall(function() can = we.RootPart end)
             if not (talk and can) then
-                talk = pcall(function() can = we.Torso end)
+                talk = pcall(function() 
+                    can = we.Torso
+                end)
             end
         end
         if not (talk and can) then
@@ -201,7 +189,6 @@ function findroot_or(sorry, marries)
     end
     return not marries and can or we
 end
-
 local function isLocalPlayerExist()
     local s, e = pcall(SPlayers.CreateLocalPlayer, SPlayers)
     if c_type("string", e) and e:lower():find('already exist') then
@@ -212,7 +199,9 @@ end
 local LP = SPlayers.LocalPlayer or SPlayers:GetPropertyChangedSignal("LocalPlayer"):Wait()
 do local exists, suc = isLocalPlayerExist()
     if not (LP or suc) and exists then
-        pcall(function() LP = SPlayers.localPlayer end)
+        pcall(function()
+            LP = SPlayers.localPlayer
+        end)
     end
 end
 local LPGui = LP:FindFirstChildOfClass("PlayerGui")
@@ -223,27 +212,31 @@ Genv.SHub.TaskSignal.LPCAdded = LP.CharacterAdded:Connect(function(c)
         LPC, LPH, LPR = c, findroot_or(c, 0), findroot_or(c)
     until LPC and LPH and LPR
 end)
-
 function GetIsOnMobile()
     local IsOnMobile
     xpcall(function()
         IsOnMobile = table.find({Enum.Platform.Android, Enum.Platform.IOS}, SUis:GetPlatform())
-    end, function()
+        end, function()
         IsOnMobile = SUis.TouchEnabled and not SUis.KeyboardEnabled
     end)
     return IsOnMobile
 end
 function GetHiddenGui()
     local Tery_ui, gethui_ = nil, c_caller("function", gethui, "ae 2020")
-    if gethui_ then Tery_ui = gethui_
-    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then Tery_ui = SCoreGui.RobloxGui
-    elseif SCoreGui then Tery_ui = SCoreGui
-    elseif LPGui then Tery_ui = LPGui end
+    if gethui_ then
+        Tery_ui = gethui_
+    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then
+        Tery_ui = SCoreGui.RobloxGui
+    elseif SCoreGui then
+        Tery_ui = SCoreGui
+    elseif LPGui then
+        Tery_ui = LPGui
+    end
     return Tery_ui
 end
 
 -- ============================================================
--- JANELA FLUENT (visual do print)
+-- [ MODIFICADO ] Janela principal com créditos do akira007p
 -- ============================================================
 local Window = Fluent:CreateWindow({
     Title = `akz scripts • {GameName}`,
@@ -257,160 +250,16 @@ local Window = Fluent:CreateWindow({
 })
 
 local SFTab = {
-    Main      = Window:AddTab({Title = "Principal", Icon = "menu"}),
-    Local     = Window:AddTab({Title = "Local", Icon = "user"}),
-    Anti_Ify  = Window:AddTab({Title = "Anti & Notificação", Icon = "user-check"}),
-    Game_Rg   = Window:AddTab({Title = "Jogo & Ragebait", Icon = "server"}),
-    v_cre     = Window:AddTab({Title = "Créditos", Icon = "rbxassetid://7733955511"}),
-    Content   = Window:AddTab({Title = "Gravação", Icon = "video"}),
-    Other     = Window:AddTab({Title = "Outros", Icon = "building"}),
-    Settings  = Window:AddTab({Title = "Configurações", Icon = "settings"})
+    Main = Window:AddTab({Title = "Principal", Icon = "menu"}),
+    Local = Window:AddTab({Title = "Local", Icon = "user"}),
+    Anti_Ify = Window:AddTab({Title = "Anti & Notificação", Icon = "user-check"}),
+    Game_Rg = Window:AddTab({Title = "Jogo & Ragebait", Icon = "server"}),
+    v_cre = Window:AddTab({Title = "Créditos", Icon = "rbxassetid://7733955511"}),
+    Content = Window:AddTab({Title = "Gravação", Icon = "video"}),
+    Other = Window:AddTab({Title = "Outros", Icon = "building"}),
+    Settings = Window:AddTab({Title = "Configurações", Icon = "settings"})
 }
 
--- ============================================================
--- ====== BADGES: FPS / Ping / Executor (topo da tela) ======
--- ============================================================
-do
-    local executorName = "executor"
-    pcall(function()
-        executorName = (identifyexecutor or getexecutorname)()
-    end)
-    if type(executorName) ~= "string" or executorName == "" then executorName = "executor" end
-
-    local badgeGui = Instance.new("ScreenGui")
-    badgeGui.Name = "akz_badges"
-    badgeGui.ResetOnSpawn = false
-    badgeGui.IgnoreGuiInset = true
-    badgeGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() badgeGui.Parent = GetHiddenGui() end)
-
-    local holder = Instance.new("Frame")
-    holder.BackgroundTransparency = 1
-    holder.Size = UDim2.new(0, 400, 0, 26)
-    holder.Position = UDim2.new(0.5, -40, 0, 22)
-    holder.Parent = badgeGui
-
-    local function makeBadge(text, xOffset, color)
-        local b = Instance.new("Frame")
-        b.Size = UDim2.new(0, 78, 0, 22)
-        b.Position = UDim2.new(0, xOffset, 0, 0)
-        b.BackgroundColor3 = Color3.fromRGB(22, 22, 22)
-        b.BorderSizePixel = 0
-        b.Parent = holder
-        local c = Instance.new("UICorner", b); c.CornerRadius = UDim.new(1, 11)
-        local s = Instance.new("UIStroke", b); s.Color = Color3.fromRGB(45, 45, 45); s.Thickness = 1
-        local l = Instance.new("TextLabel", b)
-        l.BackgroundTransparency = 1
-        l.Size = UDim2.fromScale(1, 1)
-        l.Font = Enum.Font.GothamBold
-        l.TextSize = 11
-        l.TextColor3 = color or Color3.fromRGB(120, 230, 130)
-        l.Text = text
-        return l
-    end
-
-    local fpsL = makeBadge("FPS: --", 0, Color3.fromRGB(120, 230, 130))
-    local pingL = makeBadge("Ping: --", 84, Color3.fromRGB(255, 200, 90))
-    local execL = makeBadge(executorName, 168, Color3.fromRGB(200, 140, 255))
-
-    task.spawn(function()
-        local RS = FindServiceTery("RunService")
-        local Stats = FindServiceTery("Stats")
-        local lastT, frames = tick(), 0
-        RS.RenderStepped:Connect(function()
-            frames = frames + 1
-            local now = tick()
-            if now - lastT >= 1 then
-                fpsL.Text = "FPS: " .. math.floor(frames / (now - lastT))
-                frames = 0; lastT = now
-            end
-            local ok, ping = pcall(function()
-                return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-            end)
-            if ok and ping then pingL.Text = "Ping: " .. math.floor(ping) .. "ms" end
-        end)
-    end)
-end
-
--- ============================================================
--- ====== AVATAR + NOME no rodapé da sidebar ======
--- ============================================================
-task.spawn(function()
-    task.wait(0.5)
-    pcall(function()
-        local gui = GetHiddenGui()
-        local root
-        for _, v in pairs(gui:GetChildren()) do
-            if v:IsA("ScreenGui") then
-                local n = v.Name:lower()
-                if n:find("fluent") or n:find("ray") or n:find("ui") then
-                    root = v; break
-                end
-            end
-        end
-        if not root then
-            for _, v in pairs(gui:GetChildren()) do
-                if v:IsA("ScreenGui") then root = v; break end
-            end
-        end
-        if not root then return end
-
-        local mainFrame, biggest = nil, 0
-        for _, v in pairs(root:GetDescendants()) do
-            if v:IsA("Frame") then
-                local area = v.AbsoluteSize.X * v.AbsoluteSize.Y
-                if area > biggest then biggest = area; mainFrame = v end
-            end
-        end
-        if not mainFrame then return end
-
-        local footer = Instance.new("Frame")
-        footer.Name = "akz_avatar"
-        footer.BackgroundTransparency = 1
-        footer.Size = UDim2.new(0, 180, 0, 40)
-        footer.Position = UDim2.new(0, 12, 1, -55)
-        footer.ZIndex = 5
-        footer.Parent = mainFrame
-
-        local img = Instance.new("ImageLabel")
-        img.Size = UDim2.new(0, 28, 0, 28)
-        img.Position = UDim2.new(0, 0, 0, 6)
-        img.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        img.BorderSizePixel = 0
-        img.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=48&h=48"
-        img.ZIndex = 6
-        img.Parent = footer
-        local ic = Instance.new("UICorner", img); ic.CornerRadius = UDim.new(1, 14)
-
-        local nameL = Instance.new("TextLabel")
-        nameL.BackgroundTransparency = 1
-        nameL.Position = UDim2.new(0, 36, 0, 6)
-        nameL.Size = UDim2.new(0, 140, 0, 16)
-        nameL.Font = Enum.Font.GothamBold
-        nameL.TextSize = 13
-        nameL.TextColor3 = Color3.fromRGB(235, 235, 235)
-        nameL.TextXAlignment = Enum.TextXAlignment.Left
-        nameL.Text = LP.Name
-        nameL.ZIndex = 6
-        nameL.Parent = footer
-
-        local sub = Instance.new("TextLabel")
-        sub.BackgroundTransparency = 1
-        sub.Position = UDim2.new(0, 36, 0, 21)
-        sub.Size = UDim2.new(0, 140, 0, 14)
-        sub.Font = Enum.Font.Gotham
-        sub.TextSize = 10
-        sub.TextColor3 = Color3.fromRGB(140, 140, 140)
-        sub.TextXAlignment = Enum.TextXAlignment.Left
-        sub.Text = "akz scripts"
-        sub.ZIndex = 6
-        sub.Parent = footer
-    end)
-end)
-
--- ============================================================
--- Helpers do jogo
--- ============================================================
 do
 local function IsValidInstanceOf(inst: any?, of: any?): boolean
     return c_type("Instance", inst, true) and inst.Parent and inst:IsDescendantOf(of or SWorkspace)
@@ -424,23 +273,27 @@ local function GetCurrentMap(): Instance?
     end
     if not map then
         local comp = find_instance(SWorkspace, "ComputerTable")
-        if comp and IsValidInstanceOf(comp.Parent) then map = comp.Parent end
+        if comp and IsValidInstanceOf(comp.Parent) then
+            map = comp.Parent
+        end
     end
     if not map then
         local pod = find_instance(SWorkspace, "FreezePod")
-        if pod and IsValidInstanceOf(pod.Parent) then map = pod.Parent end
+        if pod and IsValidInstanceOf(pod.Parent) then
+            map = pod.Parent
+        end
     end
     return map
 end
-local function Sround(num, np)
+local function Sround(num: number, np: number): number
     local mult = 10 ^ (np or 0)
     return math.floor(num * mult + 0.5) / mult
 end
-local function ToNumV(v)
+local function ToNumV(v: any): number
     if c_type("number", v) then return v end
     local n = t_num(v); return if n ~= nil then n else 0
 end
-local function GetPlayerList(lyname)
+local function GetPlayerList(lyname: boolean): any
     local list = {}
     for _, p in pairs(SPlayers:GetPlayers()) do
         if p == LP then continue end
@@ -448,9 +301,9 @@ local function GetPlayerList(lyname)
     end
     return list
 end
-local function getSafeParent(SName)
+local function getSafeParent(SName: string?): Instance
     local guiParent = GetHiddenGui()
-    if not SName then SName = "nia" end
+    if not SName then SName = "nia = aura" end
     local fn = `SHub_ESP_{SName}`
     local folder = guiParent:FindFirstChild(fn)
     if not folder then
@@ -460,7 +313,7 @@ local function getSafeParent(SName)
     end
     return folder
 end
-local function applyHighlight(part)
+local function applyHighlight(part: any): Instance?
     local hl = part:FindFirstChild("S_Highlight")
     if hl then return end
     hl = Instance.new("Highlight")
@@ -474,7 +327,7 @@ local function applyHighlight(part)
     hl.Parent = part
     return hl
 end
-local function createBillboard(part, IDorN, ESPContainer)
+local function createBillboard(part: any, IDorN: string, ESPContainer: Instance): (BillboardGui, TextLabel, TextLabel)
     local billboard = ESPContainer:FindFirstChild(IDorN)
     if billboard then billboard:Destroy() end
     billboard = Instance.new("BillboardGui")
@@ -511,11 +364,10 @@ local function createBillboard(part, IDorN, ESPContainer)
     arrow.Parent = billboard
     return billboard, label, arrow
 end
-local function GetESPId(inst)
+local function GetESPId(inst: any?): string
     return `ESP_{inst:GetDebugId()}`
 end
 
--- ===== PRINCIPAL =====
 SFTab.Main:AddSection "ESP"
 
 SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/Desativar ESP de Jogadores", Default = false, Callback = function(v)
@@ -529,7 +381,9 @@ SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/
     }
     local espContainer = getSafeParent("Player")
     local function clearESP()
-        for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
         for _, player in pairs(SPlayers:GetPlayers()) do
             if player ~= LP and player.Character then
                 local hl = player.Character:FindFirstChild("S_Highlight")
@@ -544,7 +398,9 @@ SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/
     end
     local function GetAlivePlayerMap()
         local map = {}
-        for _, p in pairs(GetPlayerList(true)) do map[p] = true end
+        for _, p in pairs(GetPlayerList(true)) do
+            map[p] = true
+        end
         return map
     end
     local function updateESP()
@@ -573,11 +429,18 @@ SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/
                         label.Text = string.format("Nome: %s • Studs: %d", player.Name, distance_Lp)
                         label.TextColor3 = PlayerStats
                     end
-                    if Arrow_Label then Arrow_Label.TextColor3 = PlayerStats end
+                    if Arrow_Label then
+                        Arrow_Label.TextColor3 = PlayerStats
+                    end
                 end
                 local hl = char:FindFirstChild("S_Highlight")
-                if not hl then applyHighlight(char) hl = char:FindFirstChild("S_Highlight") end
-                if hl then hl.FillColor = PlayerStats end
+                if not hl then
+                    applyHighlight(char)
+                    hl = char:FindFirstChild("S_Highlight")
+                end
+                if hl then
+                    hl.FillColor = PlayerStats
+                end
             end
         end
     end
@@ -593,7 +456,11 @@ SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/
             pcall(updateESP)
         end)
     end
-    if Genv.SHub.Toggle.PEspEnable then startESP() else clearESP() end
+    if Genv.SHub.Toggle.PEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
 end})
 
 SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description = "Ativar/Desativar ESP de Computadores", Default = false, Callback = function(v)
@@ -601,7 +468,9 @@ SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description
     local espConnection
     local espContainer = getSafeParent("Computer")
     local function clearESP()
-        for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
         local Map = GetCurrentMap()
         if not Map then return end
         for _, o in pairs(Map:GetChildren()) do
@@ -612,7 +481,9 @@ SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description
         end
     end
     local function GetComputerColor(screen)
-        if not screen or not screen:IsA("BasePart") then return Color3.fromRGB(255, 255, 0) end
+        if not screen or not screen:IsA("BasePart") then
+            return Color3.fromRGB(255, 255, 0)
+        end
         return screen.Color
     end
     local function updateESP()
@@ -620,39 +491,56 @@ SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description
         if not map then clearESP() return end
         for _, o in pairs(map:GetChildren()) do
             if o.Name == "ComputerTable" then
-                local part = o:FindFirstChildWhichIsA("BasePart")
-                if not part then continue end
-                local screen = o:FindFirstChild("Screen")
-                local espColor = GetComputerColor(screen)
-                local id = GetESPId(o)
-                local espGui = espContainer:FindFirstChild(id)
-                if not espGui then
-                    createBillboard(o, id, espContainer)
-                    espGui = espContainer:FindFirstChild(id)
-                end
-                if espGui then
-                    espGui.Adornee = o
-                    local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                    local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                    if label then label.Text = string.format("Computador • %d Studs", dist) label.TextColor3 = espColor end
-                    if arrow then arrow.TextColor3 = espColor end
-                end
-                local hl = o:FindFirstChild("S_Highlight")
-                if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                if hl then hl.FillColor = espColor end
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local screen = o:FindFirstChild("Screen")
+            local espColor = GetComputerColor(screen)
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
             end
-        end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("Computador • %d Studs", dist)
+                    label.TextColor3 = espColor
+                end
+                if arrow then
+                    arrow.TextColor3 = espColor
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = espColor
+            end
+         end
+       end
     end
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
             if not Genv.SHub.Toggle.PCCEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
             end
             pcall(updateESP)
         end)
     end
-    if Genv.SHub.Toggle.PCCEspEnable then startESP() else clearESP() end
+    if Genv.SHub.Toggle.PCCEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
 end})
 
 SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "ESP FreezePod", Description = "Ativar/Desativar ESP do FreezePod", Default = false, Callback = function(v)
@@ -661,7 +549,9 @@ SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "ESP FreezePod", Description
     local color = Color3.fromRGB(0, 0, 245)
     local espContainer = getSafeParent("FreezePod")
     local function clearESP()
-        for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
         local Map = GetCurrentMap()
         if not Map then return end
         for _, o in pairs(Map:GetChildren()) do
@@ -676,34 +566,54 @@ SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "ESP FreezePod", Description
         if not map then clearESP() return end
         for _, o in pairs(map:GetChildren()) do
             if o.Name == "FreezePod" then
-                local part = o:FindFirstChildWhichIsA("BasePart")
-                if not part then continue end
-                local id = GetESPId(o)
-                local espGui = espContainer:FindFirstChild(id)
-                if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
-                if espGui then
-                    espGui.Adornee = o
-                    local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                    local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                    if label then label.Text = string.format("FreezePod • %d Studs", dist) label.TextColor3 = color end
-                    if arrow then arrow.TextColor3 = color end
-                end
-                local hl = o:FindFirstChild("S_Highlight")
-                if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                if hl then hl.FillColor = color end
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
             end
-        end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("FreezePod • %d Studs", dist)
+                    label.TextColor3 = color
+                end
+                if arrow then
+                    arrow.TextColor3 = color
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = color
+            end
+         end
+       end
     end
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
             if not Genv.SHub.Toggle.FreezePodEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
             end
             pcall(updateESP)
         end)
     end
-    if Genv.SHub.Toggle.FreezePodEspEnable then startESP() else clearESP() end
+    if Genv.SHub.Toggle.FreezePodEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
 end})
 
 SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Description = "Ativar/Desativar ESP da Porta de Saída", Default = false, Callback = function(v)
@@ -711,7 +621,9 @@ SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Descri
     local espConnection
     local espContainer = getSafeParent("ExitDoor")
     local function clearESP()
-        for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
+        for _, child in pairs(espContainer:GetChildren()) do
+            child:Destroy()
+        end
         local Map = GetCurrentMap()
         if not Map then return end
         for _, o in pairs(Map:GetChildren()) do
@@ -722,7 +634,9 @@ SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Descri
         end
     end
     local function FindColor(part)
-        if not part or not part:IsA("BasePart") then return Color3.fromRGB(255, 255, 0) end
+        if not part or not part:IsA("BasePart") then
+            return Color3.fromRGB(255, 255, 0)
+        end
         return part.Color
     end
     local function updateESP()
@@ -730,35 +644,55 @@ SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Descri
         if not map then clearESP() return end
         for _, o in pairs(map:GetChildren()) do
             if o.Name == "ExitDoor" then
-                local part = o:FindFirstChildWhichIsA("BasePart")
-                if not part then continue end
-                local color = FindColor(o:FindFirstChild("Light"))
-                local id = GetESPId(o)
-                local espGui = espContainer:FindFirstChild(id)
-                if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
-                if espGui then
-                    espGui.Adornee = o
-                    local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                    local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                    if label then label.Text = string.format("Porta • %d Studs", dist) label.TextColor3 = color end
-                    if arrow then arrow.TextColor3 = color end
-                end
-                local hl = o:FindFirstChild("S_Highlight")
-                if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                if hl then hl.FillColor = color end
+            local part = o:FindFirstChildWhichIsA("BasePart")
+            if not part then continue end
+            local color = FindColor(o:FindFirstChild("Light"))
+            local id = GetESPId(o)
+            local espGui = espContainer:FindFirstChild(id)
+            if not espGui then
+                createBillboard(o, id, espContainer)
+                espGui = espContainer:FindFirstChild(id)
             end
-        end
+            if espGui then
+                espGui.Adornee = o
+                local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
+                local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
+                if label then
+                    label.Text = string.format("Porta Saída • %d Studs", dist)
+                    label.TextColor3 = color
+                end
+                if arrow then
+                    arrow.TextColor3 = color
+                end
+            end
+            local hl = o:FindFirstChild("S_Highlight")
+            if not hl then
+                applyHighlight(o)
+                hl = o:FindFirstChild("S_Highlight")
+            end
+            if hl then
+                hl.FillColor = color
+            end
+         end
+       end
     end
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
             if not Genv.SHub.Toggle.ExitDoorEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
+                clearESP()
+                espConnection:Disconnect()
+                espConnection = nil
+                return
             end
             pcall(updateESP)
         end)
     end
-    if Genv.SHub.Toggle.ExitDoorEspEnable then startESP() else clearESP() end
+    if Genv.SHub.Toggle.ExitDoorEspEnable then
+        startESP()
+    else
+        clearESP()
+    end
 end})
 
 SFTab.Main:AddSection "Fera"
@@ -766,11 +700,14 @@ SFTab.Main:AddSection "Fera"
 Genv.SHub.WPlr = Genv.SHub.WPlr or {}
 local function MapToArray(map)
     local t = {}
-    for n, v in pairs(map) do if v then insert(t, n) end end
+    for n, v in pairs(map) do
+        if v then insert(t, n) end
+    end
     return t
 end
-local function IsWhilstPlayer(p) return Genv.SHub.WPlr[p] end
-
+local function IsWhilstPlayer(p)
+    return Genv.SHub.WPlr[p]
+end
 do
     local this = SFTab.Main:CreateDropdown("WhilstPlayer_Dropdown", {Title = "Lista Branca (Jogadores)", Description = "Selecione jogadores para ignorar", Values = GetPlayerList(true), Multi = true, Default = MapToArray(Genv.SHub.WPlr), Callback = function(t_select)
          Genv.SHub.WPlr = t_select
@@ -836,7 +773,6 @@ SFTab.Main:AddToggle("AutoTieToggle", {Title = "Auto Amarrar", Description = "At
         end
     end
 end})
-
 do SFTab.Main:AddSection "No Jogo"
     local function hook__namecall()
         if not (getnamecallmethod and checkcaller) then return end
@@ -845,7 +781,9 @@ do SFTab.Main:AddSection "No Jogo"
         local function hook_namecall(self, ...)
             local args = {...}
             if Genv.SHub.Toggle.Antitaskfailed and not checkcaller() and getnamecallmethod() == "FireServer" and self == RemoteEvent then
-                if args[1] == "SetPlayerMinigameResult" then args[2] = true end
+                if args[1] == "SetPlayerMinigameResult" then
+                    args[2] = true
+                end
             end
             return old_namecall(self, unpack(args))
         end
@@ -888,7 +826,10 @@ do SFTab.Main:AddSection "No Jogo"
         while Genv.SHub.Toggle.AutoHelpCP_silent and task.wait(0.05) do
             if not (Local_H and Local_R and Local_C) then continue end
             if Local_H.Value <= 0 or Local_R.Value or Local_C.Value then continue end
-            if not map then map = GetCurrentMap() continue end
+            if not map then
+                map = GetCurrentMap()
+                continue
+            end
             for _, p in pairs(SPlayers:GetPlayers()) do
                 if p == LP then continue end
                 local Stats = p:FindFirstChild("TempPlayerStatsModule")
@@ -948,8 +889,12 @@ SFTab.Main:AddToggle("AntiFlingToggle", {Title = "Anti Arremesso", Description =
             if p ~= LP and p.Character then
                 for _, c in pairs(p.Character:GetDescendants()) do
                     if c:IsA "BasePart" then
-                        if c.CanCollide then c.CanCollide = false
-                        elseif not (c.CanCollide or Genv.SHub.Toggle.AntiFling) then c.CanCollide = true break end
+                        if c.CanCollide then
+                            c.CanCollide = false
+                        elseif not (c.CanCollide or Genv.SHub.Toggle.AntiFling) then
+                            c.CanCollide = true
+                            break
+                        end
                     end
                 end
             end
@@ -1018,11 +963,15 @@ SFTab.Local:AddToggle("FBToggle", {Title = "Claridade Total", Description = "Dei
             Ambient = SLighting.Ambient
         }
         local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-        if atm then Genv.SHub.FB_Original.AtmosphereDensity = atm.Density end
+        if atm then
+            Genv.SHub.FB_Original.AtmosphereDensity = atm.Density
+        end
     end
     local function applyFullBright()
         local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-        if atm then atm.Density = 0 end
+        if atm then
+            atm.Density = 0
+        end
         SLighting.Brightness = 1.5
         SLighting.ClockTime = 14
         SLighting.FogEnd = 100000
@@ -1036,7 +985,9 @@ SFTab.Local:AddToggle("FBToggle", {Title = "Claridade Total", Description = "Dei
         for prop, value in pairs(Genv.SHub.FB_Original) do
             if prop == "AtmosphereDensity" then
                 local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-                if atm then atm.Density = value end
+                if atm then
+                    atm.Density = value
+                end
             else
                 SLighting[prop] = value
             end
@@ -1076,8 +1027,12 @@ SFTab.Local:AddToggle("NoclipToggle", {Title = "Noclip", Description = "Atravess
     local function Noclip()
         for _, c in pairs(LPC:GetDescendants()) do 
             if c:IsA "BasePart" then
-                if c.CanCollide then c.CanCollide = false
-                elseif not (c.CanCollide or Genv.SHub.Toggle.Noclip) then c.CanCollide = true break end
+                if c.CanCollide then
+                    c.CanCollide = false
+                elseif not (c.CanCollide or Genv.SHub.Toggle.Noclip) then
+                    c.CanCollide = true
+                    break
+                end
             end
         end
     end
@@ -1117,7 +1072,10 @@ do SFTab.Anti_Ify:AddSection "Notificação"
                 end)
             end
         else
-            if anti_afkconnection then anti_afkconnection:Disconnect() anti_afkconnection = nil end
+            if anti_afkconnection then
+                anti_afkconnection:Disconnect()
+                anti_afkconnection = nil
+            end
         end
     end})
     SFTab.Anti_Ify:AddToggle("AntiRagdollToggle", {Title = "Anti Ragdoll", Description = "Evita que você caia no chão", Default = false, Callback = function(v)
@@ -1152,7 +1110,9 @@ do SFTab.Game_Rg:AddSection "Status do Jogo"
         local strActive = BoolToWord(isActive and isActive.Value)
         local mapName = t_str(GetCurrentMap() or "Nenhum")
         local content = string.format("Jogo Ativo: %s\nMapa Atual: %s", strActive, mapName)
-        if GameStatus_PG then GameStatus_PG:SetContent(content) end
+        if GameStatus_PG then
+            GameStatus_PG:SetContent(content)
+        end
     end
     this = SFTab.Game_Rg:AddToggle("AutoRefreshStatusToggle", {Title = "Atualizar Automático", Description = "Atualiza status em tempo real", Default = true})
     GameStatus_PG = SFTab.Game_Rg:CreateParagraph("GameStatus_Paragraph", {Title = "Status do Jogo"})
@@ -1209,7 +1169,11 @@ do SFTab.Content:AddSection "Gravação/Apresentação"
                 for _, lbl in pairs(fm:GetChildren()) do
                     if not lbl:IsA("TextLabel") then continue end
                     local num = t_num(lbl.Text)
-                    if num then level = lbl else name = lbl end
+                    if num then
+                        level = lbl
+                    else
+                        name = lbl
+                    end
                 end
                 return lyLv and level or name
             end
@@ -1245,8 +1209,12 @@ do SFTab.Content:AddSection "Gravação/Apresentação"
         while Genv.SHub.Toggle.HideListName and task.wait(0.01) do
             if not LPGui then continue end
             name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
-            if name then name.Text = Genv.SHub.CustomName end
-            if lvl then lvl.Text = Genv.SHub.CustomLevel end
+            if name then
+                name.Text = Genv.SHub.CustomName
+            end
+            if lvl then
+                lvl.Text = Genv.SHub.CustomLevel
+            end
         end
     end})
     SFTab.Content:CreateToggle("EnableHide_Bars_Toggle", {Title = "Mudar Texto Barras (UI)", Description = "Útil para gravar/apresentar", Default = false, Callback = function(v) 
@@ -1258,49 +1226,65 @@ do SFTab.Content:AddSection "Gravação/Apresentação"
         while Genv.SHub.Toggle.HideBars and task.wait(0.01) do
             if not LPGui then continue end
             name = GetCurrentUiPlrBars()
-            if name then name.Text = Genv.SHub.CustomName end
+            if name then
+                name.Text = Genv.SHub.CustomName
+            end
         end
     end})
 end
 
--- ===== CRÉDITOS =====
+-- ============================================================
+-- [ MODIFICADO ] Aba de Créditos do akira007p
+-- ============================================================
 SFTab.v_cre:AddSection "akz scripts"
+
 SFTab.v_cre:AddParagraph("Project_Paragraph", {
     Title = `akz scripts • {GameName}`,
-    Content = `Versão Beta • {this.Version}\n\nDesenvolvedor: akira007p\n\nScript modificado e personalizado.`
+    Content = `Versão Beta • {this.Version}\n\nDesenvolvedor: akira007p\n\nEste script foi modificado e personalizado. Todos os créditos originais foram mantidos abaixo.`
 })
 
 SFTab.v_cre:AddSection "Comunidade Discord"
+
 SFTab.v_cre:CreateButton {
     Title = "Entrar no Discord",
     Description = "Copiar link: discord.gg/X9C5VReP4",
     Callback = function()
-        if setclipboard then pcall(setclipboard, "https://discord.gg/X9C5VReP4") end
+        if setclipboard then
+            pcall(setclipboard, "https://discord.gg/X9C5VReP4")
+        end
         pcall(function()
             FindServiceTery("GuiService"):OpenBrowserWindow("https://discord.gg/X9C5VReP4")
         end)
-        Fluent:Notify({Title = "akz scripts", Content = "Link copiado! discord.gg/X9C5VReP4", Icon = "copy", Duration = 4})
+        Fluent:Notify({
+            Title = "akz scripts",
+            Content = "Link copiado! Entre: discord.gg/X9C5VReP4",
+            Icon = "copy",
+            Duration = 4
+        })
     end
 }
+
 SFTab.v_cre:AddParagraph("Discord_Paragraph", {
     Title = "Link do Discord",
-    Content = "https://discord.gg/X9C5VReP4"
+    Content = "https://discord.gg/X9C5VReP4\n\nCopie o link acima caso o botão não funcione."
+})
+
+SFTab.v_cre:AddSection "Créditos Originais"
+
+SFTab.v_cre:AddParagraph("Credit_Paragraph", {
+    Title = "Script Original • Criadores",
+    Content = "Criadores originais deste script: Artsynia, fxengif\n\nBiblioteca de UI (Fluent) reescrita por: ActualMasterOogway\n"..UiGit.."\n\nFeatures e ideias de todos <3"
 })
 
 SFTab.v_cre:AddSection "Desenvolvedor"
+
 SFTab.v_cre:AddParagraph("Dev_Paragraph", {
     Title = "akira007p",
     Content = "Modificado e personalizado por akira007p.\nDiscord: discord.gg/X9C5VReP4"
 })
 
-SFTab.v_cre:AddSection "Créditos Originais"
-SFTab.v_cre:AddParagraph("Credit_Paragraph", {
-    Title = "Criadores Originais",
-    Content = "Artsynia, fxengif\nBiblioteca Fluent: ActualMasterOogway\n"..UiGit
-})
-
 SFTab.Other:AddSection "Informações do Jogo Atual"
-SFTab.Other:AddParagraph("Game_Info_Paragraph", {Title = "Info", Content = `Versão da VM: {VM_Version}`})
+SFTab.Other:AddParagraph("Game_Info_Paragraph", {Title = "Info", Content = `Versão da VM do Jogo: {VM_Version}`})
 
 do SFTab.Other:AddSection "Ambiente do Executor"
     local exec = c_caller("function", identifyexecutor or getexecutorname, '', "Erro")
@@ -1327,7 +1311,10 @@ do SFTab.Other:AddSection "Ambiente do Executor"
                 Title = "Confirmar Atualização",
                 Content = "Deseja realmente atualizar o ambiente?",
                 Buttons = {
-                    {Title = "Confirmar", Callback = refresh},
+                    {
+                        Title = "Confirmar",
+                        Callback = refresh
+                    },
                     {Title = "Cancelar"}
                 }
             }
@@ -1396,6 +1383,9 @@ if GetIsOnMobile() then
 end
 if Window.HideButton then Window.HideButton.Visible = false end
 
+-- ============================================================
+-- [ MODIFICADO ] Notificação de boas-vindas
+-- ============================================================
 tracery_notif("akz scripts carregado!", "by akira007p • discord.gg/X9C5VReP4", 5)
 
 end --// FTF //--
