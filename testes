@@ -109,12 +109,12 @@ local espCache = {}
 -- ⚙️ Auto Kill
 local AutoKillConfig = {
     Ativo = false,
-    Alvo  = "Inocentes",   -- "Inocentes" | "Sheriff" | "Murder"
+    Alvo  = "Inocentes",
     Rodando = false,
-    Distancia = 12,        -- studs de distância pro Murder
-    AlvoAtual = nil,       -- nome do player atual
+    Distancia = 12,
+    AlvoAtual = nil,
     Trocas = 0,
-    Highlight = nil,       -- Highlight no alvo atual
+    Highlight = nil,
 }
 
 local KNIFE_KEYWORDS = {"knife","faca","blade","lâmina","lamina","punhal","dagger"}
@@ -294,12 +294,7 @@ local logoStroke = Instance.new("UIStroke", logo)
 logoStroke.Color = Theme.Accent
 logoStroke.Thickness = 2
 
-local logoGrad = Instance.new("UIGradient", logo)
-logoGrad.Color = ColorSequence.new{
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(35, 35, 42)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 12)),
-}
-logoGrad.Rotation = 45
+-- [REMOVIDO] Bloco do UIGradient (logoGrad) — era o "fundo/imagem" da logo.
 
 local knifeIcon = Instance.new("TextLabel", logo)
 knifeIcon.Size = UDim2.new(1, 0, 1, 0)
@@ -726,11 +721,18 @@ local function createButton(parent, order, label, onClick)
     return btn
 end
 
+-- ────────────────────────────────────────────────────────────
+-- Transparência (CORRIGIDO)
+--   • guarda o valor original uma única vez (attribute)
+--   • se chamado de novo com o mesmo estado, não faz nada
+--   • nunca acumula transparência
+-- ────────────────────────────────────────────────────────────
 local function Transp_AplicarEm(obj)
     if not obj:IsA("GuiObject") then return end
+    if obj:GetAttribute("AKZ_OrigBT") ~= nil then return end
     local bt = obj.BackgroundTransparency
     if bt >= 0.9 then return end
-    if obj:GetAttribute("AKZ_OrigBT") == nil then obj:SetAttribute("AKZ_OrigBT", bt) end
+    obj:SetAttribute("AKZ_OrigBT", bt)
     obj.BackgroundTransparency = math.min(0.88, bt + 0.5)
 end
 
@@ -744,6 +746,7 @@ local function Transp_RestaurarEm(obj)
 end
 
 local function Transp_Aplicar(ativar)
+    if TranspState.ativo == ativar then return end
     TranspState.ativo = ativar
     if ativar then
         menuFrame.BackgroundTransparency = 0.4
@@ -1702,7 +1705,6 @@ local function AutoKill_Parar()
     clearAlvoHighlight()
 end
 
--- Lista de players vivos no mapa, filtrados pelo alvo escolhido
 local function AutoKill_ListarAlvos()
     local lista = {}
     for _, p in ipairs(Players:GetPlayers()) do
@@ -1723,7 +1725,6 @@ local function AutoKill_ListarAlvos()
     return lista
 end
 
--- Teleporta em cima do alvo (100%)
 local function AutoKill_TpEmCima(target)
     local char = LocalPlayer.Character
     if not char then return false end
@@ -1735,7 +1736,6 @@ local function AutoKill_TpEmCima(target)
     return true
 end
 
--- Teleporta PERTO do alvo (12 studs atrás)
 local function AutoKill_TpPerto(target)
     local char = LocalPlayer.Character
     if not char then return false end
@@ -1784,7 +1784,6 @@ local function AutoKill_Iniciar()
                                 AutoKillConfig.AlvoAtual = t.DisplayName
                                 AutoKillConfig.Trocas = AutoKillConfig.Trocas + 1
 
-                                -- Escolhe a cor do ESP
                                 local corEsp
                                 if AutoKillConfig.Alvo == "Murder" then
                                     corEsp = Color3.fromRGB(220, 40, 40)
@@ -1795,14 +1794,12 @@ local function AutoKill_Iniciar()
                                 end
                                 applyAlvoHighlight(t, corEsp)
 
-                                -- Teleporta
                                 if AutoKillConfig.Alvo == "Murder" then
                                     AutoKill_TpPerto(t)
                                 else
                                     AutoKill_TpEmCima(t)
                                 end
 
-                                -- Espera 1 segundo
                                 task.wait(1)
                             end
                         end
@@ -2147,12 +2144,10 @@ createOptionRow(killBlock, 3, "Alvo", {"Inocentes", "Sheriff", "Murder"}, AutoKi
     showToast("🎯 ALVO", "Agora: " .. v, SUCCESS_CLR)
 end)
 
--- Slider de distância (só faz diferença pro modo "Murder")
 createSlider(killBlock, 4, "Dist. do Murder (studs)", 5, 30, AutoKillConfig.Distancia, false, function(v)
     AutoKillConfig.Distancia = math.floor(v)
 end)
 
--- Label de status
 local killStatusLbl = Instance.new("TextLabel", killBlock)
 killStatusLbl.Size = UDim2.new(1, 0, 0, 40)
 killStatusLbl.BackgroundColor3 = BG_ROW
