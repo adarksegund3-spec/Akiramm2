@@ -38,13 +38,9 @@ end)
 local t_str, t_num = tostring, tonumber
 local pack, unpack, insert = table.pack, table.unpack, table.insert
 function CallValidFunc(obj, key, ...)
-    if not c_type("Instance", obj, true) then
-        return "Objeto inválido", false
-    end
+    if not c_type("Instance", obj, true) then return "Objeto inválido", false end
     local args = pack(...)
-    local s, r = pcall(function()
-        return obj[key](obj, unpack(args, 1, args.n))
-    end)
+    local s, r = pcall(function() return obj[key](obj, unpack(args, 1, args.n)) end)
     if c_type("boolean", r) then return r end
     return s and r, s or `Erro: {t_str(r)}`, false
 end
@@ -57,12 +53,8 @@ function RequestLoadRawHttp(RequestHttp, against, c, snotify)
             return function() return unpack(args, 1, args.n) end 
         end,
         c or false
-        if not rep then
-            rep, valid = CallValidFunc(ugc, "HttpGet", RequestHttp, y)
-        end
-        if not valid then
-            rep, valid = CallValidFunc(ugc, "HttpGetAsync", RequestHttp, y)
-        end
+        if not rep then rep, valid = CallValidFunc(ugc, "HttpGet", RequestHttp, y) end
+        if not valid then rep, valid = CallValidFunc(ugc, "HttpGetAsync", RequestHttp, y) end
         if request and not valid then
             local s, sc = pcall(function()
                 local t = request({Url = RequestHttp, Method = "GET"})
@@ -77,7 +69,7 @@ function RequestLoadRawHttp(RequestHttp, against, c, snotify)
             local BF = Instance.new("BindableFunction")
             BF.OnInvoke = function(c)
                 if c ~= "Fechar" and setclipboard then
-                    setclipboard("Https :- "..RequestHttp.."\nDetalhes :- "..e)
+                    setclipboard("Https :- "..RequestHttp.."\nDetalhes do Erro :- "..e)
                 end
             end
             FindServiceTery"StarterGui":SetCore("SendNotification", {Title = "Erro: "..RequestHttp, Text = e, Icon = "rbxassetid://7733701545", Duration = (1/0), Callback = BF, Button1 = "Copiar", Button2 = "Fechar"});BF:Destroy()
@@ -87,18 +79,14 @@ function RequestLoadRawHttp(RequestHttp, against, c, snotify)
 end
 local GetAdvanceS;xpcall(function()
     GetAdvanceS = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/GetSafeService", true, nil, true)
-    end, function()
-    GetAdvanceS = FindServiceTery
-end)
+    end, function() GetAdvanceS = FindServiceTery end)
 local getgenv_ = c_caller("function", getgenv, true, c_caller("table", getgenv))
 local Genv = c_type("table", getgenv_) and getgenv_ or _G;Genv.SHub = Genv.SHub or {};Genv.SHub.MemoryService = Genv.SHub.MemoryService or {}
 task.spawn(function()
     FindServiceTery = setmetatable(Genv.SHub.MemoryService, {
         __call = function(t, n)
             local ref = c_caller("function", cloneref, nil, function(s) return s end)
-            local s, c = pcall(function()
-                return ref(GetAdvanceS(n))
-            end)
+            local s, c = pcall(function() return ref(GetAdvanceS(n)) end)
             if s and c then
                 local x = pcall(rawset, t, n, c)
                 if not x then t[n] = c end
@@ -149,9 +137,9 @@ Genv.SHub.Toggle = Genv.SHub.Toggle or {}
 Genv.SHub.TaskSignal = c_caller("function", get_hook_connections, 0) or {}
 task.spawn(function()
     pcall(function()
-            for s in pairs(Genv.SHub.TaskSignal) do
-                if s then s:Disconnect() end
-            end
+        for s in pairs(Genv.SHub.TaskSignal) do
+            if s then s:Disconnect() end
+        end
     end)
 end)
 local function find_instance(it, was)
@@ -161,10 +149,7 @@ local function find_instance(it, was)
         if not angel then
             for _, baby in pairs(love == 'table' and it or it:GetDescendants()) do
                 local you = string.lower(baby.Name)
-                if you == cute then
-                    angel = baby
-                    break
-                end
+                if you == cute then angel = baby break end
             end
         end
         return angel, angel ~= nil
@@ -177,11 +162,7 @@ function findroot_or(sorry, marries)
     if not can then
         if we then
             talk = pcall(function() can = we.RootPart end)
-            if not (talk and can) then
-                talk = pcall(function() 
-                    can = we.Torso
-                end)
-            end
+            if not (talk and can) then talk = pcall(function() can = we.Torso end) end
         end
         if not (talk and can) then
             can = sorry:FindFirstChild("HumanoidRootPart") or sorry:FindFirstChild("Torso") or sorry:FindFirstChild("UpperTorso")
@@ -191,18 +172,12 @@ function findroot_or(sorry, marries)
 end
 local function isLocalPlayerExist()
     local s, e = pcall(SPlayers.CreateLocalPlayer, SPlayers)
-    if c_type("string", e) and e:lower():find('already exist') then
-        return true, s
-    end
+    if c_type("string", e) and e:lower():find('already exist') then return true, s end
     return false, s
 end
 local LP = SPlayers.LocalPlayer or SPlayers:GetPropertyChangedSignal("LocalPlayer"):Wait()
 do local exists, suc = isLocalPlayerExist()
-    if not (LP or suc) and exists then
-        pcall(function()
-            LP = SPlayers.localPlayer
-        end)
-    end
+    if not (LP or suc) and exists then pcall(function() LP = SPlayers.localPlayer end) end
 end
 local LPGui = LP:FindFirstChildOfClass("PlayerGui")
 local LPC = LP.Character or LP.CharacterAdded:Wait()
@@ -216,22 +191,15 @@ function GetIsOnMobile()
     local IsOnMobile
     xpcall(function()
         IsOnMobile = table.find({Enum.Platform.Android, Enum.Platform.IOS}, SUis:GetPlatform())
-        end, function()
-        IsOnMobile = SUis.TouchEnabled and not SUis.KeyboardEnabled
-    end)
+        end, function() IsOnMobile = SUis.TouchEnabled and not SUis.KeyboardEnabled end)
     return IsOnMobile
 end
 function GetHiddenGui()
     local Tery_ui, gethui_ = nil, c_caller("function", gethui, "ae 2020")
-    if gethui_ then
-        Tery_ui = gethui_
-    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then
-        Tery_ui = SCoreGui.RobloxGui
-    elseif SCoreGui then
-        Tery_ui = SCoreGui
-    elseif LPGui then
-        Tery_ui = LPGui
-    end
+    if gethui_ then Tery_ui = gethui_
+    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then Tery_ui = SCoreGui.RobloxGui
+    elseif SCoreGui then Tery_ui = SCoreGui
+    elseif LPGui then Tery_ui = LPGui end
     return Tery_ui
 end
 
@@ -267,20 +235,17 @@ do
     local executorName = "executor"
     pcall(function() executorName = (identifyexecutor or getexecutorname)() end)
     if type(executorName) ~= "string" or executorName == "" then executorName = "executor" end
-
     local badgeGui = Instance.new("ScreenGui")
     badgeGui.Name = "akz_badges"
     badgeGui.ResetOnSpawn = false
     badgeGui.IgnoreGuiInset = true
     badgeGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     pcall(function() badgeGui.Parent = GetHiddenGui() end)
-
     local holder = Instance.new("Frame")
     holder.BackgroundTransparency = 1
     holder.Size = UDim2.new(0, 400, 0, 26)
     holder.Position = UDim2.new(0.5, 60, 0, 22)
     holder.Parent = badgeGui
-
     local function makeBadge(text, xOffset, color)
         local b = Instance.new("Frame")
         b.Size = UDim2.new(0, 80, 0, 22)
@@ -386,108 +351,6 @@ task.spawn(function()
 end)
 
 -- ============================================================
--- Botão flutuante "E" — arrastável, abre/fecha menu (PC e Mobile)
--- ============================================================
-do
-    local CurrentUi = GetHiddenGui()
-    local old = CurrentUi:FindFirstChild("akz_FloatingLogo")
-    if old then old:Destroy() end
-
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "akz_FloatingLogo"
-    ScreenGui.ResetOnSpawn = false
-    ScreenGui.IgnoreGuiInset = true
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.Parent = CurrentUi
-
-    local DragFrame = Instance.new("Frame")
-    DragFrame.Name = "Drag"
-    DragFrame.Size = UDim2.fromOffset(46, 46)
-    DragFrame.Position = UDim2.new(0, 30, 0.35, 0)
-    DragFrame.BackgroundTransparency = 1
-    DragFrame.Active = true
-    DragFrame.Parent = ScreenGui
-
-    local Logo = Instance.new("TextButton")
-    Logo.Name = "Logo"
-    Logo.Size = UDim2.fromScale(1, 1)
-    Logo.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-    Logo.BorderSizePixel = 0
-    Logo.Text = "E"
-    Logo.Font = Enum.Font.GothamBlack
-    Logo.TextSize = 24
-    Logo.TextColor3 = Color3.fromRGB(200, 190, 255)
-    Logo.AutoButtonColor = false
-    Logo.Parent = DragFrame
-
-    local LogoCorner = Instance.new("UICorner", Logo); LogoCorner.CornerRadius = UDim.new(0, 10)
-    local LogoStroke = Instance.new("UIStroke", Logo); LogoStroke.Color = Color3.fromRGB(90, 90, 140); LogoStroke.Thickness = 1.5; LogoStroke.Transparency = 0.2
-    local LogoGradient = Instance.new("UIGradient", Logo)
-    LogoGradient.Rotation = 45
-    LogoGradient.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 30, 42)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(55, 50, 90))
-    }
-
-    local TweenService = FindServiceTery("TweenService")
-    Logo.MouseEnter:Connect(function()
-        TweenService:Create(LogoStroke, TweenInfo.new(0.15), {Thickness = 2.5, Transparency = 0}):Play()
-    end)
-    Logo.MouseLeave:Connect(function()
-        TweenService:Create(LogoStroke, TweenInfo.new(0.15), {Thickness = 1.5, Transparency = 0.2}):Play()
-    end)
-
-    -- Arrastar (mouse + touch)
-    local dragging, dragStart, startPos = false, nil, nil
-    local function startDrag(input)
-        dragging = true
-        dragStart = input.Position
-        startPos = DragFrame.Position
-    end
-    local function updateDrag(input)
-        if not dragging then return end
-        local delta = input.Position - dragStart
-        DragFrame.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end
-    local function stopDrag() dragging = false end
-
-    DragFrame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            startDrag(input)
-        end
-    end)
-    DragFrame.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-            updateDrag(input)
-        end
-    end)
-    DragFrame.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            stopDrag()
-        end
-    end)
-
-    -- Clicar (sem arrastar) → abre/fecha o menu
-    local clickStart = nil
-    Logo.MouseButton1Down:Connect(function()
-        clickStart = tick()
-    end)
-    Logo.MouseButton1Click:Connect(function()
-        if clickStart and (tick() - clickStart) < 0.25 then
-            local rootFV = Window.Root
-            if rootFV then rootFV.Visible = not rootFV.Visible end
-        end
-        clickStart = nil
-    end)
-end
-
--- ============================================================
 -- Helpers
 -- ============================================================
 do
@@ -590,22 +453,14 @@ local function createBillboard(part, IDorN, ESPContainer)
     arrow.Parent = billboard
     return billboard, label, arrow
 end
-local function GetESPId(inst)
-    return `ESP_{inst:GetDebugId()}`
-end
+local function GetESPId(inst) return `ESP_{inst:GetDebugId()}` end
 
 -- ===== PRINCIPAL =====
 SFTab.Main:AddSection "ESP"
-
 SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/Desativar ESP de Jogadores", Default = false, Callback = function(v)
     Genv.SHub.Toggle.PEspEnable = v
     local espConnection
-    local roleColors = {
-        Beast = Color3.fromRGB(255, 0, 0),
-        Survival_Captured = Color3.fromRGB(0, 0, 255),
-        Survival = Color3.fromRGB(0, 255, 0),
-        Default = Color3.fromRGB(200, 200, 200)
-    }
+    local roleColors = {Beast = Color3.fromRGB(255,0,0), Survival_Captured = Color3.fromRGB(0,0,255), Survival = Color3.fromRGB(0,255,0), Default = Color3.fromRGB(200,200,200)}
     local espContainer = getSafeParent("Player")
     local function clearESP()
         for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
@@ -663,15 +518,12 @@ SFTab.Main:AddToggle("EspToggle", {Title = "ESP Jogador", Description = "Ativar/
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
-            if not Genv.SHub.Toggle.PEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
-            end
+            if not Genv.SHub.Toggle.PEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
             pcall(updateESP)
         end)
     end
     if Genv.SHub.Toggle.PEspEnable then startESP() else clearESP() end
 end})
-
 SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description = "Ativar/Desativar ESP de Computadores", Default = false, Callback = function(v)
     Genv.SHub.Toggle.PCCEspEnable = v
     local espConnection
@@ -702,10 +554,7 @@ SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description
                 local espColor = GetComputerColor(screen)
                 local id = GetESPId(o)
                 local espGui = espContainer:FindFirstChild(id)
-                if not espGui then
-                    createBillboard(o, id, espContainer)
-                    espGui = espContainer:FindFirstChild(id)
-                end
+                if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
                 if espGui then
                     espGui.Adornee = o
                     local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
@@ -722,15 +571,12 @@ SFTab.Main:AddToggle("EspComputerToggle", {Title = "ESP Computador", Description
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
-            if not Genv.SHub.Toggle.PCCEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
-            end
+            if not Genv.SHub.Toggle.PCCEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
             pcall(updateESP)
         end)
     end
     if Genv.SHub.Toggle.PCCEspEnable then startESP() else clearESP() end
 end})
-
 SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "ESP FreezePod", Description = "Ativar/Desativar ESP do FreezePod", Default = false, Callback = function(v)
     Genv.SHub.Toggle.FreezePodEspEnable = v
     local espConnection
@@ -773,15 +619,12 @@ SFTab.Main:AddToggle("EspFreezePodToggle", {Title = "ESP FreezePod", Description
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
-            if not Genv.SHub.Toggle.FreezePodEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
-            end
+            if not Genv.SHub.Toggle.FreezePodEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
             pcall(updateESP)
         end)
     end
     if Genv.SHub.Toggle.FreezePodEspEnable then startESP() else clearESP() end
 end})
-
 SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Description = "Ativar/Desativar ESP da Porta de Saída", Default = false, Callback = function(v)
     Genv.SHub.Toggle.ExitDoorEspEnable = v
     local espConnection
@@ -828,9 +671,7 @@ SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Descri
     local function startESP()
         if espConnection then return end
         espConnection = SRunService.RenderStepped:Connect(function()
-            if not Genv.SHub.Toggle.ExitDoorEspEnable then
-                clearESP() espConnection:Disconnect() espConnection = nil return
-            end
+            if not Genv.SHub.Toggle.ExitDoorEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
             pcall(updateESP)
         end)
     end
@@ -838,7 +679,6 @@ SFTab.Main:AddToggle("EspExitDoorToggle", {Title = "ESP Porta de Saída", Descri
 end})
 
 SFTab.Main:AddSection "Fera"
-
 Genv.SHub.WPlr = Genv.SHub.WPlr or {}
 local function MapToArray(map)
     local t = {}
@@ -857,10 +697,7 @@ do
         updthis_Dropdown()
     end)
 end
-
-SFTab.Main:AddSlider("SliderAura", {Title = "Alcance do Hit Aura", Description = "Definir alcance do Hit Aura [Fera]", Default = 10, Min = 5, Max = 15, Rounding = 1, Callback = function(v)
-   Genv.SHub.HitAuraRange = ToNumV(v)
-end})
+SFTab.Main:AddSlider("SliderAura", {Title = "Alcance do Hit Aura", Description = "Definir alcance do Hit Aura [Fera]", Default = 10, Min = 5, Max = 15, Rounding = 1, Callback = function(v) Genv.SHub.HitAuraRange = ToNumV(v) end})
 SFTab.Main:AddToggle("AuraToggle", {Title = "Hit Aura", Description = "Ativar Hit Aura [Fera]", Default = false, Callback = function(v)
     Genv.SHub.Toggle.HitAura = v
     while Genv.SHub.Toggle.HitAura and task.wait(0.15) do
@@ -883,9 +720,7 @@ SFTab.Main:AddToggle("AuraToggle", {Title = "Hit Aura", Description = "Ativar Hi
         end
     end
 end})
-SFTab.Main:AddSlider("SliderTie", {Title = "Alcance do Auto Amarrar", Description = "Definir alcance do Auto Amarrar [Fera]", Default = 5, Min = 5, Max = 100, Rounding = 1, Callback = function(v)
-   Genv.SHub.TiePlayerRange = ToNumV(v)
-end})
+SFTab.Main:AddSlider("SliderTie", {Title = "Alcance do Auto Amarrar", Description = "Definir alcance do Auto Amarrar [Fera]", Default = 5, Min = 5, Max = 100, Rounding = 1, Callback = function(v) Genv.SHub.TiePlayerRange = ToNumV(v) end})
 SFTab.Main:AddToggle("AutoTieToggle", {Title = "Auto Amarrar", Description = "Ativar Auto Amarrar [Fera]", Default = false, Callback = function(v)
     Genv.SHub.Toggle.AutoTie = v
     while Genv.SHub.Toggle.AutoTie and task.wait(0.15) do
@@ -909,7 +744,6 @@ SFTab.Main:AddToggle("AutoTieToggle", {Title = "Auto Amarrar", Description = "At
         end
     end
 end})
-
 do SFTab.Main:AddSection "No Jogo"
     local function hook__namecall()
         if not (getnamecallmethod and checkcaller) then return end
@@ -922,12 +756,8 @@ do SFTab.Main:AddSection "No Jogo"
             end
             return old_namecall(self, unpack(args))
         end
-        if hookmetamethod then
-            old_namecall = hookmetamethod(ugc, "__namecall", newcclosure(hook_namecall))
-        elseif mt and (pcall(towriteIT, mt, false)) then
-            old_namecall = mt.__namecall
-            mt.__namecall = newcclosure(hook_namecall)
-        end
+        if hookmetamethod then old_namecall = hookmetamethod(ugc, "__namecall", newcclosure(hook_namecall))
+        elseif mt and (pcall(towriteIT, mt, false)) then old_namecall = mt.__namecall mt.__namecall = newcclosure(hook_namecall) end
         return old_namecall ~= nil
     end
     local is_namecall_hooked = hook__namecall()
@@ -952,9 +782,7 @@ do SFTab.Main:AddSection "No Jogo"
                 if PodTrigger then
                     local CapturedTorso = PodTrigger:FindFirstChild("CapturedTorso")
                     local Event = PodTrigger:FindFirstChild("Event")
-                    if CapturedTorso and Event and CapturedTorso:IsA("ObjectValue") and CapturedTorso.Value then
-                        return Event
-                    end
+                    if CapturedTorso and Event and CapturedTorso:IsA("ObjectValue") and CapturedTorso.Value then return Event end
                 end
             end
         end
@@ -980,9 +808,7 @@ do SFTab.Main:AddSection "No Jogo"
     end})
     SFTab.Main:AddToggle("AutoHelp_CapturedPlrToggle", {Title = "Ajudar Capturado (Teleporte)", Description = "Versão com teleporte", Default = false, Callback = function(v)
         Genv.SHub.Toggle.AutoHelpCP = v
-        local function DoHelpCFrame(root)
-            return root.CFrame * CFrame.new(0, -4.5, 0) * CFrame.Angles(math.rad(90), 0, 0)
-        end
+        local function DoHelpCFrame(root) return root.CFrame * CFrame.new(0, -4.5, 0) * CFrame.Angles(math.rad(90), 0, 0) end
         local oldCFrame, helping = nil, false
         local Stats_LP = LP:FindFirstChild("TempPlayerStatsModule")
         local Local_H = Stats_LP and Stats_LP:FindFirstChild("Health")
@@ -1039,9 +865,7 @@ SFTab.Main:AddToggle("TFlingToggle", {Title = "Arremessar por Toque", Descriptio
         SRunService.RenderStepped:Wait()
         if LPC and LPR then LPR.Velocity = vel end
         SRunService.Stepped:Wait()
-        if LPC and LPR then
-            LPR.Velocity,movel = vel + Vector3.new(0, movel, 0),movel * -1
-        end
+        if LPC and LPR then LPR.Velocity,movel = vel + Vector3.new(0, movel, 0),movel * -1 end
     end
 end})
 
@@ -1049,20 +873,14 @@ SFTab.Local:AddSection "Câmera"
 SFTab.Local:AddToggle("NoclipCameraToggle", {Title = "Câmera Atravessar Paredes", Description = "Permite ver através das paredes", Default = false, Callback = function(v)
     Genv.SHub.Toggle.CamNoclip = v
     while Genv.SHub.Toggle.CamNoclip and task.wait(.1) do
-        if (LP.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam) then
-            LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
-        end
+        if (LP.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam) then LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam end
     end
-    if not Genv.SHub.Toggle.CamNoclip then
-       LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom
-    end
+    if not Genv.SHub.Toggle.CamNoclip then LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom end
 end})
 SFTab.Local:AddToggle("CameraDModeToggle", {Title = "Modo Câmera Padrão", Description = "Desativa câmera em primeira pessoa", Default = false, Callback = function(v)
     Genv.SHub.Toggle.CamDMode = v
     while Genv.SHub.Toggle.CamDMode and task.wait(.1) do
-        if (LP.CameraMode ~= Enum.CameraMode.Classic) then
-            LP.CameraMode = Enum.CameraMode.Classic
-        end
+        if (LP.CameraMode ~= Enum.CameraMode.Classic) then LP.CameraMode = Enum.CameraMode.Classic end
     end
 end})
 SFTab.Local:AddInput("Input_CamMaxZoom", {Title = "Zoom Máximo da Câmera", Default = "", Placeholder = "Definir Zoom Máximo", Numeric = true, Finished = false, Callback = function(v)
@@ -1072,24 +890,14 @@ end})
 SFTab.Local:AddToggle("CameraZoomDisToggle", {Title = "Aplicar Zoom Máximo", Description = "Define automaticamente o zoom máximo", Default = false, Callback = function(v)
     Genv.SHub.Toggle.CamMaxZoom = v
     while Genv.SHub.Toggle.CamMaxZoom and task.wait(.1) do
-        if (LP.CameraMaxZoomDistance ~= Genv.SHub.CamMaxZoomDis) then
-            LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis
-        end
+        if (LP.CameraMaxZoomDistance ~= Genv.SHub.CamMaxZoomDis) then LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis end
     end
 end})
 SFTab.Local:AddSection "Local"
 SFTab.Local:AddToggle("FBToggle", {Title = "Claridade Total", Description = "Deixa o mapa todo iluminado", Default = false, Callback = function(v)
     Genv.SHub.Toggle.FullBright = v
     local function saveLighting()
-        Genv.SHub.FB_Original = {
-            Brightness = SLighting.Brightness,
-            ClockTime = SLighting.ClockTime,
-            FogEnd = SLighting.FogEnd,
-            FogStart = SLighting.FogStart,
-            GlobalShadows = SLighting.GlobalShadows,
-            OutdoorAmbient = SLighting.OutdoorAmbient,
-            Ambient = SLighting.Ambient
-        }
+        Genv.SHub.FB_Original = {Brightness=SLighting.Brightness, ClockTime=SLighting.ClockTime, FogEnd=SLighting.FogEnd, FogStart=SLighting.FogStart, GlobalShadows=SLighting.GlobalShadows, OutdoorAmbient=SLighting.OutdoorAmbient, Ambient=SLighting.Ambient}
         local atm = SLighting:FindFirstChildOfClass("Atmosphere")
         if atm then Genv.SHub.FB_Original.AtmosphereDensity = atm.Density end
     end
@@ -1110,39 +918,27 @@ SFTab.Local:AddToggle("FBToggle", {Title = "Claridade Total", Description = "Dei
             if prop == "AtmosphereDensity" then
                 local atm = SLighting:FindFirstChildOfClass("Atmosphere")
                 if atm then atm.Density = value end
-            else
-                SLighting[prop] = value
-            end
+            else SLighting[prop] = value end
         end
     end
     if Genv.SHub.Toggle.FullBright then
         saveLighting()
         while Genv.SHub.Toggle.FullBright and task.wait() do applyFullBright() end
-    else
-        task.wait(.25); restoreLighting()
-    end
+    else task.wait(.25); restoreLighting() end
 end})
-SFTab.Local:AddInput("Input_TpwalkSpeed", {Title = "Velocidade do TP Walk", Default = "", Placeholder = "Definir Velocidade", Numeric = true, Finished = false, Callback = function(v)
-    Genv.SHub.tpwalkSpeed = ToNumV(v)
-end})
+SFTab.Local:AddInput("Input_TpwalkSpeed", {Title = "Velocidade do TP Walk", Default = "", Placeholder = "Definir Velocidade", Numeric = true, Finished = false, Callback = function(v) Genv.SHub.tpwalkSpeed = ToNumV(v) end})
 SFTab.Local:AddToggle("TPWalk_Toggle", {Title = "TP Walk", Description = "Anda muito rápido (como walkspeed)", Default = false, Callback = function(v)
     Genv.SHub.Toggle.tpwalk = v
     while Genv.SHub.Toggle.tpwalk do
         local dt = SRunService.Heartbeat:Wait()
         if not (LPC and LPH) then continue end
         local move = LPH.MoveDirection
-        if move.Magnitude > 0 then
-            LPC:TranslateBy(move * (Genv.SHub.tpwalkSpeed or 1) * dt * 10)
-        end
+        if move.Magnitude > 0 then LPC:TranslateBy(move * (Genv.SHub.tpwalkSpeed or 1) * dt * 10) end
     end
 end})
-SFTab.Local:AddToggle("InfJumpToggle", {Title = "Pulo Infinito", Description = "Ativar/Desativar Pulo Infinito", Default = false, Callback = function(v)
-    Genv.SHub.Toggle.InfJump = v
-end})
+SFTab.Local:AddToggle("InfJumpToggle", {Title = "Pulo Infinito", Description = "Ativar/Desativar Pulo Infinito", Default = false, Callback = function(v) Genv.SHub.Toggle.InfJump = v end})
 Genv.SHub.TaskSignal.InfJump = SUis.JumpRequest:Connect(function()
-    if Genv.SHub.Toggle.InfJump and LPH then
-        LPH:ChangeState "Jumping"
-    end
+    if Genv.SHub.Toggle.InfJump and LPH then LPH:ChangeState "Jumping" end
 end)
 SFTab.Local:AddToggle("NoclipToggle", {Title = "Noclip", Description = "Atravessar paredes", Default = false, Callback = function(v)
     Genv.SHub.Toggle.Noclip = v
@@ -1239,9 +1035,7 @@ local function GetCurrentBeastHEvent(needed)
     for _, p in pairs(SPlayers:GetPlayers()) do
         if p ~= LP and p.Character then
             local c = p.Character
-            if c:FindFirstChild "Hammer" then
-                return not needed and find_instance(c, "HammerEvent") or c
-            end
+            if c:FindFirstChild "Hammer" then return not needed and find_instance(c, "HammerEvent") or c end
         end
     end
 end
@@ -1249,9 +1043,7 @@ local function GetCurrentBeastPEvent(needed)
     for _, p in pairs(SPlayers:GetPlayers()) do
         if p ~= LP and p.Character then
             local c = p.Character
-            if c:FindFirstChild "BeastPowers" then
-                return not needed and find_instance(c, "PowersEvent") or c
-            end
+            if c:FindFirstChild "BeastPowers" then return not needed and find_instance(c, "PowersEvent") or c end
         end
     end
 end
@@ -1291,9 +1083,7 @@ do SFTab.Content:AddSection "Gravação/Apresentação"
         local plrf = LPGui:FindFirstChild("StatusBars", true)
         if not plrf then return nil end
         for _, tl in pairs(plrf:GetChildren()) do
-            if tl:IsA("TextLabel") and tl.Text:lower():find(LP.Name:lower(), 1, true) then
-                Genv.SHub.BarsTL = tl
-            end
+            if tl:IsA("TextLabel") and tl.Text:lower():find(LP.Name:lower(), 1, true) then Genv.SHub.BarsTL = tl end
         end
         return Genv.SHub.BarsTL
     end
@@ -1301,12 +1091,8 @@ do SFTab.Content:AddSection "Gravação/Apresentação"
     Genv.SHub.CustomLevel = 100
     local lv = GetCurrentUiPlrFrame(true)
     local oldlvl = lv and lv.Text or 1
-    SFTab.Content:AddInput("Input_CustomName", {Title = "Nome Customizado", Default = "", Placeholder = "", Numeric = false, Finished = false, Callback = function(str)
-        Genv.SHub.CustomName = t_str(str)
-    end})
-    SFTab.Content:AddInput("Input_CustomLevel", {Title = "Nível Customizado", Default = "", Placeholder = "", Numeric = true, Finished = false, Callback = function(n)
-        Genv.SHub.CustomLevel = ToNumV(n)
-    end})
+    SFTab.Content:AddInput("Input_CustomName", {Title = "Nome Customizado", Default = "", Placeholder = "", Numeric = false, Finished = false, Callback = function(str) Genv.SHub.CustomName = t_str(str) end})
+    SFTab.Content:AddInput("Input_CustomLevel", {Title = "Nível Customizado", Default = "", Placeholder = "", Numeric = true, Finished = false, Callback = function(n) Genv.SHub.CustomLevel = ToNumV(n) end})
     SFTab.Content:CreateToggle("EnableHide_ListName_Toggle", {Title = "Mudar Texto Lista (UI)", Description = "Útil para gravar/apresentar", Default = false, Callback = function(v) 
         Genv.SHub.Toggle.HideListName = v
         local name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
@@ -1338,37 +1124,23 @@ end
 -- Créditos
 -- ============================================================
 SFTab.v_cre:AddSection "akz scripts"
-SFTab.v_cre:AddParagraph("Project_Paragraph", {
-    Title = `akz scripts • {GameName}`,
-    Content = `Versão Beta • {this.Version}\n\nDesenvolvedor: akira007p`
-})
-
+SFTab.v_cre:AddParagraph("Project_Paragraph", {Title = `akz scripts • {GameName}`, Content = `Versão Beta • {this.Version}\n\nDesenvolvedor: akira007p`})
 SFTab.v_cre:AddSection "Comunidade Discord"
 SFTab.v_cre:CreateButton {
     Title = "Entrar no Discord",
     Description = "Copiar link: discord.gg/X9C5VReP4",
     Callback = function()
         if setclipboard then pcall(setclipboard, "https://discord.gg/X9C5VReP4") end
-        pcall(function()
-            FindServiceTery("GuiService"):OpenBrowserWindow("https://discord.gg/X9C5VReP4")
-        end)
+        pcall(function() FindServiceTery("GuiService"):OpenBrowserWindow("https://discord.gg/X9C5VReP4") end)
         Fluent:Notify({Title = "akz scripts", Content = "Link copiado! discord.gg/X9C5VReP4", Icon = "copy", Duration = 4})
     end
 }
-SFTab.v_cre:AddParagraph("Discord_Paragraph", {
-    Title = "Link do Discord",
-    Content = "https://discord.gg/X9C5VReP4"
-})
-
+SFTab.v_cre:AddParagraph("Discord_Paragraph", {Title = "Link do Discord", Content = "https://discord.gg/X9C5VReP4"})
 SFTab.v_cre:AddSection "Desenvolvedor"
-SFTab.v_cre:AddParagraph("Dev_Paragraph", {
-    Title = "akira007p",
-    Content = "Desenvolvido por akira007p.\nDiscord: discord.gg/X9C5VReP4"
-})
+SFTab.v_cre:AddParagraph("Dev_Paragraph", {Title = "akira007p", Content = "Desenvolvido por akira007p.\nDiscord: discord.gg/X9C5VReP4"})
 
 SFTab.Other:AddSection "Informações do Jogo Atual"
 SFTab.Other:AddParagraph("Game_Info_Paragraph", {Title = "Info", Content = `Versão da VM: {VM_Version}`})
-
 do SFTab.Other:AddSection "Ambiente do Executor"
     local exec = c_caller("function", identifyexecutor or getexecutorname, '', "Erro")
     local function list_ev()
@@ -1393,16 +1165,12 @@ do SFTab.Other:AddSection "Ambiente do Executor"
             Window:Dialog {
                 Title = "Confirmar Atualização",
                 Content = "Deseja realmente atualizar o ambiente?",
-                Buttons = {
-                    {Title = "Confirmar", Callback = refresh},
-                    {Title = "Cancelar"}
-                }
+                Buttons = {{Title = "Confirmar", Callback = refresh}, {Title = "Cancelar"}}
             }
         end
     }
     this = SFTab.Other:AddParagraph("Exec_Env_Paragraph", {Title = "Ambiente"})
 end
-
 end
 
 SaveManager:SetLibrary(Fluent)
@@ -1416,52 +1184,6 @@ SaveManager:BuildConfigSection(SFTab.Settings)
 SaveManager:LoadAutoloadConfig()
 Window:SelectTab(1)
 
--- Botão toggle nativo do Fluent pra mobile (opcional, mantido)
-if GetIsOnMobile() then
-    local CurrentUi = GetHiddenGui()
-    if CurrentUi:FindFirstChild "ToggleShubUi" then CurrentUi.ToggleShubUi:Destroy() end
-    local NormalSize, HoverSize = UDim2.fromOffset(40, 40), UDim2.fromOffset(45, 45)
-    local ScreenGui = Instance.new "ScreenGui"
-    local ImageButton = Instance.new "ImageButton"
-    local UICorner = Instance.new("UICorner", ImageButton)
-    local UIStroke = Instance.new("UIStroke", ImageButton)
-    local UIAspectRatioConstraint = Instance.new("UIAspectRatioConstraint", ImageButton)
-    local UIGradient = Instance.new("UIGradient", ImageButton)
-    UIStroke.Color = Color3.new(0, 0, 0)
-    UIStroke.Thickness = 4
-    UIStroke.Transparency = 0.30
-    UIAspectRatioConstraint.AspectRatio = 1.25
-    ScreenGui.Name = "ToggleShubUi"
-    ScreenGui.Parent = CurrentUi
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ImageButton.Parent = ScreenGui
-    ImageButton.BorderColor3 = Color3.fromRGB(255, 185, 115)
-    ImageButton.BackgroundTransparency = 0.35
-    ImageButton.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    ImageButton.Position = UDim2.new(0.1, 0, 0.15, 0)
-    ImageButton.Size = NormalSize
-    ImageButton.Image = "rbxassetid://10709810463"
-    ImageButton.Draggable = true
-    UIGradient.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.new(0.3, 0.3, 0.3)),ColorSequenceKeypoint.new(1, Color3.new(1, 1, 1))}
-    UIGradient.Transparency = NumberSequence.new{NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.5, 0.1), NumberSequenceKeypoint.new(1, 0)}
-    local TweenService = FindServiceTery "TweenService"
-    local function rotateGradient()
-        UIGradient.Rotation = 0
-        local tween = TweenService:Create(UIGradient, TweenInfo.new(4, Enum.EasingStyle.Linear), {Rotation = 360})
-        tween:Play()
-        tween.Completed:Once(rotateGradient)
-    end
-    rotateGradient()
-    ImageButton.MouseButton1Click:Connect(function() local rootFV=Window.Root;rootFV.Visible = not rootFV.Visible end)
-    ImageButton.MouseEnter:Connect(function()
-        TweenService:Create(ImageButton, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = HoverSize}):Play()
-        TweenService:Create(UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Thickness = 6}):Play()
-    end)
-    ImageButton.MouseLeave:Connect(function()
-        TweenService:Create(ImageButton, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Size = NormalSize}):Play()
-        TweenService:Create(UIStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Thickness = 4}):Play()
-    end)
-end
 if Window.HideButton then Window.HideButton.Visible = false end
 
 tracery_notif("akz scripts carregado!", "by akira007p • discord.gg/X9C5VReP4", 5)
