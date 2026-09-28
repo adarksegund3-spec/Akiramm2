@@ -1,1362 +1,1090 @@
--- akz scripts
+-- akz scripts - UI no estilo Ethos Hub
 -- Desenvolvedor: akira007p
 -- Discord: https://discord.gg/X9C5VReP4
 
 do --/* FTF */--
-local function c_caller(t, f, cf, ...)
+-- ============================================================
+-- UTILITÁRIOS BASE
+-- ============================================================
+local c_caller = function(t, f, cf, ...)
     if type(f) == t then if cf then return f() end return f end
     return ...
 end
-local function ReadVMVersion()
-    return c_caller("function", isluau, 0) and "Luau" or _VERSION
-end
-local VM_Version = ReadVMVersion()
 local ugc = game or Game
-if not VM_Version:lower():find('luau') then ugc.GetService(ugc, 'Players').LocalPlayer:Kick('Este jogo não suporta Luau.') end
-if not ugc:IsLoaded() then
-    local s = pcall(function() ugc:Load() ugc.Loaded:Wait() end)
-    if not s then repeat task.wait() until ugc:IsLoaded() end
-end
-local this = {Version = '1.1.0'}
 local FindServiceTery = function(s) return ugc:GetService(s) end
-local newcclosure = c_caller("function", newcclosure, nil, function(f) return f end)
-local setclipboard = c_caller("function", setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set))
+local setclipboard = c_caller("function", setclipboard or toclipboard or set_clipboard)
 local request, loadstring, setidentity, getidentity = http_request or request or (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request), loadstring or load, (setidentity or setthreadidentity) or (setthreadcontext or set_thread_context), (getidentity or getthreadidentity) or (getthreadcontext or get_thread_context)
-local identity = c_caller("function", getidentity, 0)
-local function c_type(ty, v, lu)
+local c_type = function(ty, v, lu)
     local t = lu and typeof or type
     return t(v) == ty
 end
 task.spawn(function()
-    if (getidentity and setidentity and c_type("number", identity)) and identity <= 5 then
-        pcall(setidentity,8); identity=getidentity()
+    if getidentity and setidentity then
+        local id = getidentity()
+        if c_type("number", id) and id <= 5 then pcall(setidentity, 8) end
     end
 end)
 local t_str, t_num = tostring, tonumber
 local pack, unpack, insert = table.pack, table.unpack, table.insert
 
-function CallValidFunc(obj, key, ...)
-    if not c_type("Instance", obj, true) then return "Objeto inválido", false end
-    local args = pack(...)
-    local s, r = pcall(function() return obj[key](obj, unpack(args, 1, args.n)) end)
-    if c_type("boolean", r) then return r end
-    return s and r, s or `Erro: {t_str(r)}`, false
-end
-function RequestLoadRawHttp(RequestHttp, against, c, snotify)
+function RequestLoadRawHttp(url, against, c, snotify)
     local r, s, su; s, su = xpcall(function()
-        local rep, loads, y, valid = nil,
-        against and loadstring or
-        function(...)
-            local args = pack(...)
-            return function() return unpack(args, 1, args.n) end 
-        end,
-        c or false
-        if not rep then rep, valid = CallValidFunc(ugc, "HttpGet", RequestHttp, y) end
-        if not valid then rep, valid = CallValidFunc(ugc, "HttpGetAsync", RequestHttp, y) end
-        if request and not valid then
-            local s, sc = pcall(function()
-                local t = request({Url = RequestHttp, Method = "GET"})
+        local rep, loads = nil, against and loadstring or function(...) local a = pack(...) return function() return unpack(a, 1, a.n) end end
+        local ok, resp = pcall(function() return ugc:HttpGet(url) end)
+        if ok then rep = resp end
+        if not rep and request then
+            local s2, sc = pcall(function()
+                local t = request({Url = url, Method = "GET"})
                 return c_type("table", t) and t.Body
             end)
-            rep = s and sc
+            rep = s2 and sc
         end
         r = pack(loads(rep)())
         return true
-    end, function(e)
-        if c_type("string", e) and not snotify then
-            local BF = Instance.new("BindableFunction")
-            BF.OnInvoke = function(c)
-                if c ~= "Fechar" and setclipboard then
-                    setclipboard("Https :- "..RequestHttp.."\nDetalhes do Erro :- "..e)
-                end
-            end
-            FindServiceTery"StarterGui":SetCore("SendNotification", {Title = "Erro: "..RequestHttp, Text = e, Icon = "rbxassetid://7733701545", Duration = (1/0), Callback = BF, Button1 = "Copiar", Button2 = "Fechar"});BF:Destroy()
-        end
-    end)
+    end, function() end)
     return (s and su) and unpack(r, 1, r.n)
 end
-local GetAdvanceS;xpcall(function()
-    GetAdvanceS = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/GetSafeService", true, nil, true)
-    end, function() GetAdvanceS = FindServiceTery end)
-local getgenv_ = c_caller("function", getgenv, true, c_caller("table", getgenv))
-local Genv = c_type("table", getgenv_) and getgenv_ or _G;Genv.SHub = Genv.SHub or {};Genv.SHub.MemoryService = Genv.SHub.MemoryService or {}
-task.spawn(function()
-    FindServiceTery = setmetatable(Genv.SHub.MemoryService, {
-        __call = function(t, n)
-            local ref = c_caller("function", cloneref, nil, function(s) return s end)
-            local s, c = pcall(function() return ref(GetAdvanceS(n)) end)
-            if s and c then
-                local x = pcall(rawset, t, n, c)
-                if not x then t[n] = c end
-                return c
-            end
-        end
-    })
-end)
-RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/ScriptStarOZX/refs/heads/main/IfXDarkNotification.Lua", true);local tracery_notif=createNotification;createNotification=nil
-local function IsGame_Valid(): boolean
-    local thisid = 893973440
-    local s, r = pcall(function()
-        local Asset = FindServiceTery("AssetService")
-        local PlaceAsync = CallValidFunc(Asset, "GetGamePlacesAsync")
-        if not PlaceAsync then return false end
-        local Page = CallValidFunc(PlaceAsync, "GetCurrentPage")
-        for _, t in pairs(Page) do
-            for _, pid in pairs(t) do
-                if pid ~= thisid then continue end
-                return true
-            end
-        end
-    end)
-    return s and r or ugc.PlaceId == thisid
-end
-local PInfo = CallValidFunc(FindServiceTery("MarketplaceService"), "GetProductInfo", ugc.PlaceId)
-local GameName = c_type("table", PInfo) and PInfo.Name or "baba"
-if not IsGame_Valid() then return tracery_notif(GameName, "Este jogo está incorreto.", 3.5) end
-tracery_notif("Carregando", "Aguarde...", 3.5)
-local why = RequestLoadRawHttp("https://raw.githubusercontent.com/Backlostunking/Open-Source/refs/heads/main/Function/RBXSignal.luau", true, nil, true)
-pcall(why)
 
--- ============================================================
--- Carrega Rayfield
--- ============================================================
-local Rayfield = RequestLoadRawHttp("https://sirius.menu/rayfield", true)
+local CoreGui = FindServiceTery("CoreGui")
+local Players = FindServiceTery("Players")
+local RunService = FindServiceTery("RunService")
+local UIS = FindServiceTery("UserInputService")
+local TweenService = FindServiceTery("TweenService")
+local Stats = FindServiceTery("Stats")
+local Workspace_ = FindServiceTery("Workspace")
+local Lighting = FindServiceTery("Lighting")
+local ReplicatedStorage = FindServiceTery("ReplicatedStorage")
+local LP = Players.LocalPlayer
 
-local SWorkspace = FindServiceTery("Workspace")
-local SLighting = FindServiceTery("Lighting")
-local SUis = FindServiceTery("UserInputService")
-local SCoreGui = FindServiceTery("CoreGui")
-local SRunService = FindServiceTery("RunService")
-local SPlayers = FindServiceTery("Players")
-local SReplicatedStorage = FindServiceTery("ReplicatedStorage")
-local RemoteEvent = SReplicatedStorage:FindFirstChild("RemoteEvent") or SReplicatedStorage:WaitForChild("RemoteEvent", 2)
+local RemoteEvent = ReplicatedStorage:FindFirstChild("RemoteEvent") or ReplicatedStorage:WaitForChild("RemoteEvent", 2)
 
-Genv.SHub.Notify = Genv.SHub.Notify or {}
-Genv.SHub.Anti = Genv.SHub.Anti or {}
-Genv.SHub.Toggle = Genv.SHub.Toggle or {}
-Genv.SHub.TaskSignal = c_caller("function", get_hook_connections, 0) or {}
-
-task.spawn(function()
-    pcall(function()
-        for s in pairs(Genv.SHub.TaskSignal) do if s then s:Disconnect() end end
-    end)
+local gui_parent = CoreGui
+pcall(function()
+    if gethui then gui_parent = gethui() end
 end)
 
-local function find_instance(it, was)
-    local love, cute = typeof(it), string.lower(was)
-    if love and cute then
-        local angel = (love == 'Instance' and it:FindFirstChild(was, true))
-        if not angel then
-            for _, baby in pairs(love == 'table' and it or it:GetDescendants()) do
-                local you = string.lower(baby.Name)
-                if you == cute then angel = baby break end
-            end
-        end
-        return angel, angel ~= nil
+-- ============================================================
+-- FRAMEWORK UI (estilo Ethos)
+-- ============================================================
+local COLORS = {
+    BG        = Color3.fromRGB(24, 24, 24),
+    Sidebar   = Color3.fromRGB(18, 18, 18),
+    Header    = Color3.fromRGB(22, 22, 22),
+    Element   = Color3.fromRGB(36, 36, 36),
+    ElementHi = Color3.fromRGB(44, 44, 44),
+    Text      = Color3.fromRGB(230, 230, 230),
+    TextDim   = Color3.fromRGB(140, 140, 140),
+    ToggleOn  = Color3.fromRGB(240, 240, 240),
+    ToggleOff = Color3.fromRGB(60, 60, 60),
+    Border    = Color3.fromRGB(48, 48, 48),
+    Selected  = Color3.fromRGB(38, 38, 38),
+    Green     = Color3.fromRGB(120, 230, 130),
+    Yellow    = Color3.fromRGB(255, 200, 90),
+    Purple    = Color3.fromRGB(200, 140, 255),
+}
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "akz_ui"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = gui_parent
+
+local Window = Instance.new("Frame")
+Window.Name = "Window"
+Window.Size = UDim2.fromOffset(560, 420)
+Window.Position = UDim2.new(0.5, -280, 0.5, -210)
+Window.BackgroundColor3 = COLORS.BG
+Window.BorderSizePixel = 0
+Window.Active = true
+Window.Parent = ScreenGui
+Instance.new("UICorner", Window).CornerRadius = UDim.new(0, 10)
+local ws = Instance.new("UIStroke", Window); ws.Color = COLORS.Border; ws.Thickness = 1; ws.Transparency = 0.2
+
+-- HEADER
+local Header = Instance.new("Frame")
+Header.Name = "Header"
+Header.Size = UDim2.new(1, 0, 0, 44)
+Header.BackgroundColor3 = COLORS.Header
+Header.BorderSizePixel = 0
+Header.Parent = Window
+Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 10)
+local hc = Instance.new("Frame"); hc.Size = UDim2.new(1, 0, 0, 12); hc.Position = UDim2.new(0, 0, 1, -12); hc.BackgroundColor3 = COLORS.Header; hc.BorderSizePixel = 0; hc.Parent = Header
+
+local Logo = Instance.new("TextLabel")
+Logo.Size = UDim2.fromOffset(28, 28)
+Logo.Position = UDim2.new(0, 12, 0.5, -14)
+Logo.BackgroundTransparency = 1
+Logo.Text = "E"
+Logo.Font = Enum.Font.GothamBlack
+Logo.TextSize = 22
+Logo.TextColor3 = COLORS.Text
+Logo.Parent = Header
+
+local Title = Instance.new("TextLabel")
+Title.Position = UDim2.new(0, 46, 0, 7)
+Title.Size = UDim2.new(0, 260, 0, 16)
+Title.BackgroundTransparency = 1
+Title.Text = "akz scripts - [1.3]"
+Title.Font = Enum.Font.GothamSemibold
+Title.TextSize = 13
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.TextColor3 = COLORS.Text
+Title.Parent = Header
+
+local Subtitle = Instance.new("TextLabel")
+Subtitle.Position = UDim2.new(0, 46, 0, 24)
+Subtitle.Size = UDim2.new(0, 260, 0, 12)
+Subtitle.BackgroundTransparency = 1
+Subtitle.Text = "by akira007p - akz hub"
+Subtitle.Font = Enum.Font.Gotham
+Subtitle.TextSize = 10
+Subtitle.TextXAlignment = Enum.TextXAlignment.Left
+Subtitle.TextColor3 = COLORS.TextDim
+Subtitle.Parent = Header
+
+-- Badges
+local BadgesHolder = Instance.new("Frame")
+BadgesHolder.Size = UDim2.fromOffset(240, 22)
+BadgesHolder.Position = UDim2.new(1, -310, 0.5, -11)
+BadgesHolder.BackgroundTransparency = 1
+BadgesHolder.Parent = Header
+
+local function makeBadge(text, xOffset, color)
+    local b = Instance.new("Frame")
+    b.Size = UDim2.fromOffset(78, 22)
+    b.Position = UDim2.new(0, xOffset, 0, 0)
+    b.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
+    b.BorderSizePixel = 0
+    b.Parent = BadgesHolder
+    Instance.new("UICorner", b).CornerRadius = UDim.new(1, 11)
+    local s = Instance.new("UIStroke", b); s.Color = COLORS.Border; s.Thickness = 1
+    local l = Instance.new("TextLabel", b)
+    l.BackgroundTransparency = 1
+    l.Size = UDim2.fromScale(1, 1)
+    l.Font = Enum.Font.GothamBold
+    l.TextSize = 11
+    l.TextColor3 = color
+    l.Text = text
+    return l
+end
+
+local execName = "executor"
+pcall(function() execName = (identifyexecutor or getexecutorname)() end)
+if type(execName) ~= "string" or execName == "" then execName = "executor" end
+
+local fpsL = makeBadge("FPS: --", 0, COLORS.Green)
+local pingL = makeBadge("Ping: --", 84, COLORS.Yellow)
+local execL = makeBadge(execName, 168, COLORS.Purple)
+
+-- Window controls
+local Controls = Instance.new("Frame")
+Controls.Size = UDim2.fromOffset(90, 30)
+Controls.Position = UDim2.new(1, -96, 0.5, -15)
+Controls.BackgroundTransparency = 1
+Controls.Parent = Header
+
+local function makeCtrl(text, xPos, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.fromOffset(26, 26)
+    btn.Position = UDim2.new(0, xPos, 0.5, -13)
+    btn.BackgroundTransparency = 1
+    btn.Text = text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.TextColor3 = COLORS.TextDim
+    btn.AutoButtonColor = false
+    btn.Parent = Controls
+    btn.MouseEnter:Connect(function() btn.TextColor3 = COLORS.Text end)
+    btn.MouseLeave:Connect(function() btn.TextColor3 = COLORS.TextDim end)
+    btn.MouseButton1Click:Connect(callback)
+    return btn
+end
+
+local minimized = false
+makeCtrl("–", 0, function()
+    minimized = not minimized
+    TweenService:Create(Window, TweenInfo.new(0.2), {Size = minimized and UDim2.fromOffset(560, 44) or UDim2.fromOffset(560, 420)}):Play()
+end)
+makeCtrl("□", 30, function() end)
+makeCtrl("×", 60, function() ScreenGui:Destroy() end)
+
+-- SIDEBAR
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 155, 1, -44)
+Sidebar.Position = UDim2.new(0, 0, 0, 44)
+Sidebar.BackgroundColor3 = COLORS.Sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = Window
+Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 10)
+local sc = Instance.new("Frame"); sc.Size = UDim2.new(0, 12, 1, 0); sc.Position = UDim2.new(0, 0, 0, 0); sc.BackgroundColor3 = COLORS.Sidebar; sc.BorderSizePixel = 0; sc.Parent = Sidebar
+
+-- Avatar footer
+local Footer = Instance.new("Frame")
+Footer.Size = UDim2.new(1, 0, 0, 55)
+Footer.Position = UDim2.new(0, 0, 1, -55)
+Footer.BackgroundTransparency = 1
+Footer.Parent = Sidebar
+
+local Avatar = Instance.new("ImageLabel")
+Avatar.Size = UDim2.fromOffset(34, 34)
+Avatar.Position = UDim2.new(0, 12, 0, 12)
+Avatar.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Avatar.BorderSizePixel = 0
+Avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=48&h=48"
+Avatar.Parent = Footer
+Instance.new("UICorner", Avatar).CornerRadius = UDim.new(1, 17)
+
+local UserName = Instance.new("TextLabel")
+UserName.Position = UDim2.new(0, 54, 0, 14)
+UserName.Size = UDim2.new(1, -60, 0, 16)
+UserName.BackgroundTransparency = 1
+UserName.Text = LP.Name
+UserName.Font = Enum.Font.GothamSemibold
+UserName.TextSize = 12
+UserName.TextXAlignment = Enum.TextXAlignment.Left
+UserName.TextColor3 = COLORS.Text
+UserName.Parent = Footer
+
+local UserSub = Instance.new("TextLabel")
+UserSub.Position = UDim2.new(0, 54, 0, 30)
+UserSub.Size = UDim2.new(1, -60, 0, 14)
+UserSub.BackgroundTransparency = 1
+UserSub.Text = LP.Name
+UserSub.Font = Enum.Font.Gotham
+UserSub.TextSize = 10
+UserSub.TextXAlignment = Enum.TextXAlignment.Left
+UserSub.TextColor3 = COLORS.TextDim
+UserSub.Parent = Footer
+
+-- Tab list
+local TabList = Instance.new("ScrollingFrame")
+TabList.Size = UDim2.new(1, 0, 1, -60)
+TabList.BackgroundTransparency = 1
+TabList.BorderSizePixel = 0
+TabList.ScrollBarThickness = 0
+TabList.CanvasSize = UDim2.new(0, 0, 0, 0)
+TabList.AutomaticCanvasSize = Enum.AutomaticSize.Y
+TabList.Parent = Sidebar
+local tlLayout = Instance.new("UIListLayout", TabList)
+tlLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tlLayout.Padding = UDim.new(0, 2)
+
+-- Content area
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -155, 1, -44)
+Content.Position = UDim2.new(0, 155, 0, 44)
+Content.BackgroundTransparency = 1
+Content.Parent = Window
+
+-- Framework
+local UI = { Tabs = {} }
+
+function UI:CreateTab(name, icon)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    btn.Parent = TabList
+
+    local ico = Instance.new("ImageLabel")
+    ico.Size = UDim2.fromOffset(16, 16)
+    ico.Position = UDim2.new(0, 14, 0.5, -8)
+    ico.BackgroundTransparency = 1
+    ico.Image = "rbxassetid://" .. tostring(icon or 4483362458)
+    ico.ImageColor3 = COLORS.TextDim
+    ico.Parent = btn
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Position = UDim2.new(0, 38, 0, 0)
+    lbl.Size = UDim2.new(1, -42, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = COLORS.TextDim
+    lbl.Parent = btn
+
+    local ind = Instance.new("Frame")
+    ind.Size = UDim2.new(0, 3, 1, -12)
+    ind.Position = UDim2.new(0, 0, 0, 6)
+    ind.BackgroundColor3 = COLORS.Text
+    ind.BorderSizePixel = 0
+    ind.Visible = false
+    ind.Parent = btn
+
+    local container = Instance.new("ScrollingFrame")
+    container.Size = UDim2.fromScale(1, 1)
+    container.BackgroundTransparency = 1
+    container.BorderSizePixel = 0
+    container.ScrollBarThickness = 2
+    container.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 80)
+    container.Visible = false
+    container.CanvasSize = UDim2.new(0, 0, 0, 0)
+    container.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    container.Parent = Content
+    local layout = Instance.new("UIListLayout", container)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 6)
+    local pad = Instance.new("UIPadding", container)
+    pad.PaddingTop = UDim.new(0, 10)
+    pad.PaddingLeft = UDim.new(0, 10)
+    pad.PaddingRight = UDim.new(0, 10)
+
+    local this = { Frame = container, Button = btn, Label = lbl, Icon = ico, Indicator = ind }
+    btn.MouseButton1Click:Connect(function() UI:SelectTab(this) end)
+    insert(UI.Tabs, this)
+    return this
+end
+
+function UI:SelectTab(tab)
+    for _, t in pairs(UI.Tabs) do
+        t.Frame.Visible = false
+        t.Label.TextColor3 = COLORS.TextDim
+        t.Icon.ImageColor3 = COLORS.TextDim
+        t.Button.BackgroundTransparency = 1
+        t.Indicator.Visible = false
     end
-    return 'não encontrado', false
+    tab.Frame.Visible = true
+    tab.Label.TextColor3 = COLORS.Text
+    tab.Icon.ImageColor3 = COLORS.Text
+    tab.Button.BackgroundColor3 = COLORS.Selected
+    tab.Button.BackgroundTransparency = 0
+    tab.Indicator.Visible = true
 end
-function findroot_or(sorry, marries)
-    if not (sorry and sorry.Parent) then return end
-    local can, we, talk = nil, sorry:FindFirstChildWhichIsA('Humanoid')
-    if not can then
-        if we then
-            talk = pcall(function() can = we.RootPart end)
-            if not (talk and can) then talk = pcall(function() can = we.Torso end) end
-        end
-        if not (talk and can) then
-            can = sorry:FindFirstChild("HumanoidRootPart") or sorry:FindFirstChild("Torso") or sorry:FindFirstChild("UpperTorso")
-        end
+
+function UI:CreateSection(parent, title)
+    local s = Instance.new("TextLabel")
+    s.Size = UDim2.new(1, 0, 0, 26)
+    s.BackgroundTransparency = 1
+    s.Text = title
+    s.Font = Enum.Font.GothamSemibold
+    s.TextSize = 13
+    s.TextXAlignment = Enum.TextXAlignment.Left
+    s.TextColor3 = COLORS.Text
+    s.Parent = parent
+    return s
+end
+
+function UI:CreateToggle(parent, title, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 34)
+    frame.BackgroundColor3 = COLORS.Element
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -80, 1, 0)
+    lbl.Position = UDim2.new(0, 12, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = title
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = COLORS.Text
+    lbl.Parent = frame
+
+    local state = default
+    local switch = Instance.new("Frame")
+    switch.Size = UDim2.fromOffset(34, 18)
+    switch.Position = UDim2.new(1, -46, 0.5, -9)
+    switch.BackgroundColor3 = state and COLORS.ToggleOn or COLORS.ToggleOff
+    switch.BorderSizePixel = 0
+    switch.Parent = frame
+    Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 9)
+
+    local knob = Instance.new("Frame")
+    knob.Size = UDim2.fromOffset(14, 14)
+    knob.Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7)
+    knob.BackgroundColor3 = state and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(180, 180, 180)
+    knob.BorderSizePixel = 0
+    knob.Parent = switch
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 7)
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.fromScale(1, 1)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = frame
+
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(switch, TweenInfo.new(0.15), {BackgroundColor3 = state and COLORS.ToggleOn or COLORS.ToggleOff}):Play()
+        TweenService:Create(knob, TweenInfo.new(0.15), {
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+            BackgroundColor3 = state and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(180, 180, 180)
+        }):Play()
+        if callback then pcall(callback, state) end
+    end)
+    return frame
+end
+
+function UI:CreateButton(parent, title, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 32)
+    btn.BackgroundColor3 = COLORS.Element
+    btn.BorderSizePixel = 0
+    btn.Text = title
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 12
+    btn.TextColor3 = COLORS.Text
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = COLORS.ElementHi}):Play() end)
+    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.1), {BackgroundColor3 = COLORS.Element}):Play() end)
+    btn.MouseButton1Click:Connect(function() if callback then pcall(callback) end end)
+    return btn
+end
+
+function UI:CreateSlider(parent, title, min, max, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 46)
+    frame.BackgroundColor3 = COLORS.Element
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -80, 0, 18)
+    lbl.Position = UDim2.new(0, 12, 0, 6)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = title
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.TextColor3 = COLORS.Text
+    lbl.Parent = frame
+
+    local valLbl = Instance.new("TextLabel")
+    valLbl.Size = UDim2.new(0, 50, 0, 18)
+    valLbl.Position = UDim2.new(1, -62, 0, 6)
+    valLbl.BackgroundTransparency = 1
+    valLbl.Text = tostring(default)
+    valLbl.Font = Enum.Font.Gotham
+    valLbl.TextSize = 12
+    valLbl.TextColor3 = COLORS.TextDim
+    valLbl.TextXAlignment = Enum.TextXAlignment.Right
+    valLbl.Parent = frame
+
+    local track = Instance.new("Frame")
+    track.Size = UDim2.new(1, -24, 0, 4)
+    track.Position = UDim2.new(0, 12, 1, -12)
+    track.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    track.BorderSizePixel = 0
+    track.Parent = frame
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 2)
+
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
+    fill.BackgroundColor3 = COLORS.Text
+    fill.BorderSizePixel = 0
+    fill.Parent = track
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 2)
+
+    local dragging = false
+    local function update(input)
+        local rel = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        local val = math.floor(min + (max - min) * rel)
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        valLbl.Text = tostring(val)
+        if callback then pcall(callback, val) end
     end
-    return not marries and can or we
+    track.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; update(input)
+        end
+    end)
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then update(input) end
+    end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+    end)
+    return frame
 end
-local function isLocalPlayerExist()
-    local s, e = pcall(SPlayers.CreateLocalPlayer, SPlayers)
-    if c_type("string", e) and e:lower():find('already exist') then return true, s end
-    return false, s
+
+function UI:CreateParagraph(parent, title, content)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 54)
+    frame.BackgroundColor3 = COLORS.Element
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local t = Instance.new("TextLabel")
+    t.Size = UDim2.new(1, -24, 0, 16)
+    t.Position = UDim2.new(0, 12, 0, 6)
+    t.BackgroundTransparency = 1
+    t.Text = title
+    t.Font = Enum.Font.GothamSemibold
+    t.TextSize = 12
+    t.TextXAlignment = Enum.TextXAlignment.Left
+    t.TextColor3 = COLORS.Text
+    t.Parent = frame
+
+    local c = Instance.new("TextLabel")
+    c.Size = UDim2.new(1, -24, 0, 26)
+    c.Position = UDim2.new(0, 12, 0, 22)
+    c.BackgroundTransparency = 1
+    c.Text = content or ""
+    c.Font = Enum.Font.Gotham
+    c.TextSize = 11
+    c.TextXAlignment = Enum.TextXAlignment.Left
+    c.TextYAlignment = Enum.TextYAlignment.Top
+    c.TextWrapped = true
+    c.TextColor3 = COLORS.TextDim
+    c.Parent = frame
+    return frame
 end
-local LP = SPlayers.LocalPlayer or SPlayers:GetPropertyChangedSignal("LocalPlayer"):Wait()
-do local exists, suc = isLocalPlayerExist()
-    if not (LP or suc) and exists then pcall(function() LP = SPlayers.localPlayer end) end
-end
+
+-- Drag window
+local dragging, dragStart, startPos = false, nil, nil
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = Window.Position
+    end
+end)
+UIS.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local d = input.Position - dragStart
+        Window.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
+
+-- Badges update
+task.spawn(function()
+    local lastT, frames = tick(), 0
+    RunService.RenderStepped:Connect(function()
+        frames = frames + 1
+        local now = tick()
+        if now - lastT >= 1 then
+            fpsL.Text = "FPS: " .. math.floor(frames / (now - lastT))
+            frames = 0; lastT = now
+        end
+        local ok, ping = pcall(function() return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() end)
+        if ok and ping then pingL.Text = "Ping: " .. math.floor(ping) .. "ms" end
+    end)
+end)
+
+-- ============================================================
+-- HELPERS DO JOGO
+-- ============================================================
+local SWorkspace = Workspace_
+local SLighting = Lighting
+local SPlayers = Players
+local SRunService = RunService
 local LPGui = LP:FindFirstChildOfClass("PlayerGui")
 local LPC = LP.Character or LP.CharacterAdded:Wait()
-local LPH, LPR = findroot_or(LPC, 0), findroot_or(LPC)
-Genv.SHub.TaskSignal.LPCAdded = LP.CharacterAdded:Connect(function(c)
+local function findroot_or(char, wantHumanoid)
+    if not (char and char.Parent) then return end
+    local hrp = char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("Torso") or char:FindFirstChild("UpperTorso")
+    local hum = char:FindFirstChildWhichIsA("Humanoid")
+    return wantHumanoid and hum or hrp
+end
+local LPH, LPR = findroot_or(LPC, true), findroot_or(LPC)
+LP.CharacterAdded:Connect(function(c)
     repeat SRunService.Heartbeat:Wait()
-        LPC, LPH, LPR = c, findroot_or(c, 0), findroot_or(c)
+        LPC, LPH, LPR = c, findroot_or(c, true), findroot_or(c)
     until LPC and LPH and LPR
 end)
-function GetIsOnMobile()
-    local IsOnMobile
-    xpcall(function()
-        IsOnMobile = table.find({Enum.Platform.Android, Enum.Platform.IOS}, SUis:GetPlatform())
-        end, function() IsOnMobile = SUis.TouchEnabled and not SUis.KeyboardEnabled end)
-    return IsOnMobile
-end
-function GetHiddenGui()
-    local Tery_ui, gethui_ = nil, c_caller("function", gethui, "ae 2020")
-    if gethui_ then Tery_ui = gethui_
-    elseif SCoreGui and SCoreGui:FindFirstChild "RobloxGui" then Tery_ui = SCoreGui.RobloxGui
-    elseif SCoreGui then Tery_ui = SCoreGui
-    elseif LPGui then Tery_ui = LPGui end
-    return Tery_ui
-end
-
--- ============================================================
--- JANELA RAYFIELD
--- ============================================================
-local Window = Rayfield:CreateWindow({
-    Name = `akz scripts - {GameName}`,
-    LoadingTitle = "akz scripts",
-    LoadingSubtitle = "by akira007p",
-    ConfigurationSaving = {
-        Enabled = true,
-        FolderName = "akzscripts",
-        FileName = "config"
-    },
-    Discord = { Enabled = false },
-    KeySystem = false
-})
-
--- Abas (ícones: IDs do Roblox — mesma estética do print)
-local MainTab     = Window:CreateTab("Principal",           4483362458)
-local LocalTab    = Window:CreateTab("Local",               4483362458)
-local AntiTab     = Window:CreateTab("Anti & Notificação",  4483362458)
-local GameTab     = Window:CreateTab("Jogo & Ragebait",     4483362458)
-local RecordTab   = Window:CreateTab("Gravação",            4483362458)
-local CreditsTab  = Window:CreateTab("Créditos",            4483362458)
-local OtherTab    = Window:CreateTab("Outros",              4483362458)
-local SettingsTab = Window:CreateTab("Configurações",       4483362458)
-
--- ============================================================
--- BADGES FPS / PING / EXECUTOR (igual ao print)
--- ============================================================
-do
-    local executorName = "executor"
-    pcall(function() executorName = (identifyexecutor or getexecutorname)() end)
-    if type(executorName) ~= "string" or executorName == "" then executorName = "executor" end
-
-    local badgeGui = Instance.new("ScreenGui")
-    badgeGui.Name = "akz_badges"
-    badgeGui.ResetOnSpawn = false
-    badgeGui.IgnoreGuiInset = true
-    badgeGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    pcall(function() badgeGui.Parent = GetHiddenGui() end)
-
-    local holder = Instance.new("Frame")
-    holder.BackgroundTransparency = 1
-    holder.Size = UDim2.new(0, 400, 0, 26)
-    holder.Position = UDim2.new(0.5, 60, 0, 22)
-    holder.Parent = badgeGui
-
-    local function makeBadge(text, xOffset, color)
-        local b = Instance.new("Frame")
-        b.Size = UDim2.new(0, 80, 0, 22)
-        b.Position = UDim2.new(0, xOffset, 0, 0)
-        b.BackgroundColor3 = Color3.fromRGB(28, 28, 28)
-        b.BorderSizePixel = 0
-        b.Parent = holder
-        local c = Instance.new("UICorner", b); c.CornerRadius = UDim.new(1, 11)
-        local s = Instance.new("UIStroke", b); s.Color = Color3.fromRGB(55, 55, 55); s.Thickness = 1
-        local l = Instance.new("TextLabel", b)
-        l.BackgroundTransparency = 1
-        l.Size = UDim2.fromScale(1, 1)
-        l.Font = Enum.Font.GothamBold
-        l.TextSize = 11
-        l.TextColor3 = color
-        l.Text = text
-        return l
+local function find_instance(it, was)
+    local l = typeof(it)
+    if l == 'Instance' then
+        local a = it:FindFirstChild(was, true)
+        if a then return a, true end
+        for _, b in pairs(it:GetDescendants()) do
+            if b.Name:lower() == was:lower() then return b, true end
+        end
     end
-    local fpsL = makeBadge("FPS: --", 0, Color3.fromRGB(120, 230, 130))
-    local pingL = makeBadge("Ping: --", 86, Color3.fromRGB(255, 200, 90))
-    local execL = makeBadge(executorName, 172, Color3.fromRGB(200, 140, 255))
-
-    task.spawn(function()
-        local RS = FindServiceTery("RunService")
-        local Stats = FindServiceTery("Stats")
-        local lastT, frames = tick(), 0
-        RS.RenderStepped:Connect(function()
-            frames = frames + 1
-            local now = tick()
-            if now - lastT >= 1 then
-                fpsL.Text = "FPS: " .. math.floor(frames / (now - lastT))
-                frames = 0; lastT = now
-            end
-            local ok, ping = pcall(function()
-                return Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-            end)
-            if ok and ping then pingL.Text = "Ping: " .. math.floor(ping) .. "ms" end
-        end)
-    end)
-end
-
--- ============================================================
--- AVATAR + NOME no rodapé (nativo do Rayfield, forçado se faltar)
--- ============================================================
-task.spawn(function()
-    task.wait(1.5)
-    pcall(function()
-        local gui = GetHiddenGui()
-        local root
-        for _, v in pairs(gui:GetChildren()) do
-            if v:IsA("ScreenGui") and (v.Name:lower():find("ray") or v.Name:lower():find("key")) then
-                root = v; break
-            end
-        end
-        if not root then
-            for _, v in pairs(gui:GetChildren()) do
-                if v:IsA("ScreenGui") then root = v; break end
-            end
-        end
-        if not root then return end
-
-        local mainFrame, biggest = nil, 0
-        for _, v in pairs(root:GetDescendants()) do
-            if v:IsA("Frame") then
-                local area = v.AbsoluteSize.X * v.AbsoluteSize.Y
-                if area > biggest then biggest = area; mainFrame = v end
-            end
-        end
-        if not mainFrame then return end
-        if mainFrame:FindFirstChild("akz_avatar") then return end
-
-        local footer = Instance.new("Frame")
-        footer.Name = "akz_avatar"
-        footer.BackgroundTransparency = 1
-        footer.Size = UDim2.new(0, 180, 0, 44)
-        footer.Position = UDim2.new(0, 12, 1, -58)
-        footer.ZIndex = 5
-        footer.Parent = mainFrame
-
-        local img = Instance.new("ImageLabel")
-        img.Size = UDim2.new(0, 30, 0, 30)
-        img.Position = UDim2.new(0, 0, 0, 6)
-        img.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-        img.BorderSizePixel = 0
-        img.Image = "rbxthumb://type=AvatarHeadShot&id=" .. LP.UserId .. "&w=48&h=48"
-        img.ZIndex = 6
-        img.Parent = footer
-        local ic = Instance.new("UICorner", img); ic.CornerRadius = UDim.new(1, 15)
-
-        local nameL = Instance.new("TextLabel")
-        nameL.BackgroundTransparency = 1
-        nameL.Position = UDim2.new(0, 38, 0, 6)
-        nameL.Size = UDim2.new(0, 140, 0, 17)
-        nameL.Font = Enum.Font.GothamBold
-        nameL.TextSize = 13
-        nameL.TextColor3 = Color3.fromRGB(235, 235, 235)
-        nameL.TextXAlignment = Enum.TextXAlignment.Left
-        nameL.Text = LP.Name
-        nameL.ZIndex = 6
-        nameL.Parent = footer
-
-        local sub = Instance.new("TextLabel")
-        sub.BackgroundTransparency = 1
-        sub.Position = UDim2.new(0, 38, 0, 23)
-        sub.Size = UDim2.new(0, 140, 0, 14)
-        sub.Font = Enum.Font.Gotham
-        sub.TextSize = 10
-        sub.TextColor3 = Color3.fromRGB(130, 130, 130)
-        sub.TextXAlignment = Enum.TextXAlignment.Left
-        sub.Text = "akz scripts"
-        sub.ZIndex = 6
-        sub.Parent = footer
-    end)
-end)
-
--- ============================================================
--- Helpers do jogo
--- ============================================================
-do
-local function IsValidInstanceOf(inst, of)
-    return c_type("Instance", inst, true) and inst.Parent and inst:IsDescendantOf(of or SWorkspace)
+    return nil, false
 end
 local function GetCurrentMap()
-    local map
-    local ov = find_instance(SReplicatedStorage, "CurrentMap")
-    if ov and ov:IsA("ObjectValue") then
-        local v = ov.Value
-        map = IsValidInstanceOf(v) and v
-    end
-    if not map then
-        local comp = find_instance(SWorkspace, "ComputerTable")
-        if comp and IsValidInstanceOf(comp.Parent) then map = comp.Parent end
-    end
-    if not map then
-        local pod = find_instance(SWorkspace, "FreezePod")
-        if pod and IsValidInstanceOf(pod.Parent) then map = pod.Parent end
-    end
-    return map
+    local ov = find_instance(ReplicatedStorage, "CurrentMap")
+    if ov and ov:IsA("ObjectValue") and ov.Value then return ov.Value end
+    local comp = find_instance(SWorkspace, "ComputerTable")
+    if comp and comp.Parent then return comp.Parent end
+    local pod = find_instance(SWorkspace, "FreezePod")
+    if pod and pod.Parent then return pod.Parent end
 end
-local function Sround(num, np)
-    local mult = 10 ^ (np or 0)
-    return math.floor(num * mult + 0.5) / mult
+local function GetPlayerList()
+    local t = {}
+    for _, p in pairs(SPlayers:GetPlayers()) do
+        if p ~= LP then insert(t, p.Name) end
+    end
+    return t
 end
 local function ToNumV(v)
     if c_type("number", v) then return v end
-    local n = t_num(v); return if n ~= nil then n else 0
+    local n = t_num(v); return n or 0
 end
-local function GetPlayerList(lyname)
-    local list = {}
-    for _, p in pairs(SPlayers:GetPlayers()) do
-        if p == LP then continue end
-        insert(list, lyname and p.Name or p)
-    end
-    return list
-end
-local function getSafeParent(SName)
-    local guiParent = GetHiddenGui()
-    if not SName then SName = "nia" end
-    local fn = `SHub_ESP_{SName}`
-    local folder = guiParent:FindFirstChild(fn)
-    if not folder then
-        folder = Instance.new("Folder")
-        folder.Name = fn
-        folder.Parent = guiParent
-    end
-    return folder
-end
-local function applyHighlight(part)
-    local hl = part:FindFirstChild("S_Highlight")
-    if hl then return end
-    hl = Instance.new("Highlight")
-    hl.Name = "S_Highlight"
-    hl.Adornee = part
-    hl.FillColor = Color3.new(0, 0, 0)
-    hl.OutlineColor = Color3.new(0, 0, 0)
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.FillTransparency = 0.50
-    hl.OutlineTransparency = 0.85
-    hl.Parent = part
-    return hl
-end
-local function createBillboard(part, IDorN, ESPContainer)
-    local billboard = ESPContainer:FindFirstChild(IDorN)
-    if billboard then billboard:Destroy() end
-    billboard = Instance.new("BillboardGui")
-    billboard.Name = IDorN
-    billboard.Adornee = part
-    billboard.Size = UDim2.new(5, 0, 5, 0)
-    billboard.AlwaysOnTop = true
-    billboard.LightInfluence = 0
-    billboard.Parent = ESPContainer
-    local label = Instance.new("TextLabel")
-    label.Name = "Text_Label"
-    label.Size = UDim2.fromScale(1, 1)
-    label.BackgroundTransparency = 1
-    label.TextTransparency = 0.25
-    label.TextStrokeTransparency = 0.25
-    label.TextSize = 11
-    label.Font = Enum.Font.FredokaOne
-    label.TextColor3 = Color3.new(0, 0, 0)
-    label.Text = "Carregando..."
-    label.Parent = billboard
-    local arrow = Instance.new("TextLabel")
-    arrow.Name = "Arrow_Label"
-    arrow.Size = UDim2.new(1, 0, 0, 20)
-    arrow.Position = UDim2.new(0.5, 0, 0, 1)
-    arrow.AnchorPoint = Vector2.new(0.5, 1)
-    arrow.BackgroundTransparency = 1
-    arrow.TextTransparency = 0.25
-    arrow.TextColor3 = Color3.new(1, 1, 1)
-    arrow.TextStrokeTransparency = 0.25
-    arrow.Font = Enum.Font.FredokaOne
-    arrow.TextScaled = true
-    arrow.Rotation = 180
-    arrow.Text = "^"
-    arrow.Parent = billboard
-    return billboard, label, arrow
-end
-local function GetESPId(inst) return `ESP_{inst:GetDebugId()}` end
+local Genv = _G; Genv.SHub = Genv.SHub or {}; Genv.SHub.Toggle = Genv.SHub.Toggle or {}; Genv.SHub.Notify = Genv.SHub.Notify or {}
 
--- ===== ABA PRINCIPAL — ESP =====
-MainTab:CreateSection("ESP")
+-- ============================================================
+-- CRIA AS ABAS
+-- ============================================================
+local MainTab = UI:CreateTab("Principal", 4483362458)
+local LocalTab = UI:CreateTab("Local", 4483362458)
+local AntiTab = UI:CreateTab("Anti & Notificação", 4483362458)
+local GameTab = UI:CreateTab("Jogo & Ragebait", 4483362458)
+local RecordTab = UI:CreateTab("Gravação", 4483362458)
+local CreditsTab = UI:CreateTab("Créditos", 4483362458)
+local OtherTab = UI:CreateTab("Outros", 4483362458)
+local SettingsTab = UI:CreateTab("Configurações", 4483362458)
 
-MainTab:CreateToggle({
-    Name = "ESP Jogador",
-    CurrentValue = false,
-    Flag = "EspToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.PEspEnable = v
-        local espConnection
-        local roleColors = {Beast = Color3.fromRGB(255,0,0), Survival_Captured = Color3.fromRGB(0,0,255), Survival = Color3.fromRGB(0,255,0), Default = Color3.fromRGB(200,200,200)}
-        local espContainer = getSafeParent("Player")
-        local function clearESP()
-            for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
-            for _, player in pairs(SPlayers:GetPlayers()) do
-                if player ~= LP and player.Character then
-                    local hl = player.Character:FindFirstChild("S_Highlight")
-                    if hl then hl:Destroy() end
+UI:SelectTab(MainTab)
+
+-- ============================================================
+-- ABA PRINCIPAL
+-- ============================================================
+UI:CreateSection(MainTab.Frame, "ESP")
+
+UI:CreateToggle(MainTab.Frame, "ESP Jogador", false, function(v)
+    Genv.SHub.Toggle.PEspEnable = v
+    local conn
+    local espFolder = Instance.new("Folder")
+    espFolder.Name = "SHub_ESP_Player"
+    espFolder.Parent = ScreenGui
+    local function clear()
+        for _, c in pairs(espFolder:GetChildren()) do c:Destroy() end
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local h = p.Character:FindFirstChild("S_Highlight")
+                if h then h:Destroy() end
+            end
+        end
+    end
+    local function update()
+        for _, c in pairs(espFolder:GetChildren()) do
+            if not c.Adornee or not c.Adornee.Parent then c:Destroy() end
+        end
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local head = p.Character:FindFirstChild("Head")
+                local root = findroot_or(p.Character)
+                if not (head and root) then continue end
+                local existing = espFolder:FindFirstChild(p.Name)
+                if not existing then
+                    local bb = Instance.new("BillboardGui")
+                    bb.Name = p.Name
+                    bb.Adornee = head
+                    bb.Size = UDim2.new(5, 0, 5, 0)
+                    bb.AlwaysOnTop = true
+                    bb.Parent = espFolder
+                    local l = Instance.new("TextLabel", bb)
+                    l.Size = UDim2.fromScale(1, 1)
+                    l.BackgroundTransparency = 1
+                    l.Font = Enum.Font.GothamBold
+                    l.TextSize = 11
+                    l.TextStrokeTransparency = 0.3
+                    l.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    l.Text = p.Name
+                else
+                    existing.Adornee = head
+                    local l = existing:FindFirstChildOfClass("TextLabel")
+                    if l then
+                        l.Text = string.format("%s [%d]", p.Name, math.floor((root.Position - LPR.Position).Magnitude))
+                    end
+                end
+                local hl = p.Character:FindFirstChild("S_Highlight")
+                if not hl then
+                    hl = Instance.new("Highlight")
+                    hl.Name = "S_Highlight"
+                    hl.Adornee = p.Character
+                    hl.FillColor = Color3.fromRGB(255, 0, 0)
+                    hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+                    hl.FillTransparency = 0.6
+                    hl.Parent = p.Character
                 end
             end
         end
-        local function GetPlayerStats(stats)
-            if not stats then return end
-            local isBeast, Captured, health = stats:FindFirstChild("IsBeast"), stats:FindFirstChild("Captured"), stats:FindFirstChild("Health")
-            return (isBeast.Value and roleColors.Beast) or (Captured.Value and roleColors.Survival_Captured) or (health.Value <= 0 and roleColors.Default) or roleColors.Survival
-        end
-        local function GetAlivePlayerMap()
-            local map = {}
-            for _, p in pairs(GetPlayerList(true)) do map[p] = true end
-            return map
-        end
-        local function updateESP()
-            local alivePlayer = GetAlivePlayerMap()
-            for _, u in pairs(espContainer:GetChildren()) do
-                if u:IsA('BillboardGui') then
-                    if not alivePlayer[u.Name] then u:Destroy() end
-                end
-            end
-            for _, player in pairs(SPlayers:GetPlayers()) do
-                if player ~= LP and player.Character then
-                    local char = player.Character
-                    local head = char:FindFirstChild("Head")
-                    local root = findroot_or(char)
-                    local stats = player:FindFirstChild("TempPlayerStatsModule")
-                    local PlayerStats = GetPlayerStats(stats)
-                    local espGui = espContainer:FindFirstChild(player.Name)
-                    if not espGui then
-                        createBillboard(head, player.Name, espContainer)
-                        espGui = espContainer:FindFirstChild(player.Name)
-                    else
-                        espGui.Adornee = head
-                        local label, Arrow_Label = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                        if label then
-                            local distance_Lp = Sround((root.Position - LPR.Position).Magnitude, 1)
-                            label.Text = string.format("Nome: %s • Studs: %d", player.Name, distance_Lp)
-                            label.TextColor3 = PlayerStats
+    end
+    if v then
+        conn = SRunService.RenderStepped:Connect(function() pcall(update) end)
+    else
+        if conn then conn:Disconnect() end
+        clear()
+    end
+end)
+
+UI:CreateToggle(MainTab.Frame, "ESP Computador", false, function(v)
+    Genv.SHub.Toggle.PCCEsp = v
+    local espFolder = ScreenGui:FindFirstChild("SHub_ESP_Computer") or Instance.new("Folder")
+    espFolder.Name = "SHub_ESP_Computer"; espFolder.Parent = ScreenGui
+    local conn
+    local function clear()
+        for _, c in pairs(espFolder:GetChildren()) do c:Destroy() end
+    end
+    if v then
+        conn = SRunService.RenderStepped:Connect(function()
+            local map = GetCurrentMap()
+            if not map then return end
+            pcall(function()
+                for _, o in pairs(map:GetChildren()) do
+                    if o.Name == "ComputerTable" then
+                        local part = o:FindFirstChildWhichIsA("BasePart")
+                        if part then
+                            local id = "C_" .. o:GetDebugId()
+                            local bb = espFolder:FindFirstChild(id)
+                            if not bb then
+                                bb = Instance.new("BillboardGui")
+                                bb.Name = id
+                                bb.Adornee = part
+                                bb.Size = UDim2.new(4, 0, 4, 0)
+                                bb.AlwaysOnTop = true
+                                bb.Parent = espFolder
+                                local l = Instance.new("TextLabel", bb)
+                                l.Size = UDim2.fromScale(1, 1)
+                                l.BackgroundTransparency = 1
+                                l.Font = Enum.Font.GothamBold
+                                l.TextColor3 = Color3.fromRGB(255, 255, 100)
+                                l.TextStrokeTransparency = 0.3
+                                l.Text = "Computador"
+                            end
+                            bb.Adornee = part
                         end
-                        if Arrow_Label then Arrow_Label.TextColor3 = PlayerStats end
                     end
-                    local hl = char:FindFirstChild("S_Highlight")
-                    if not hl then applyHighlight(char) hl = char:FindFirstChild("S_Highlight") end
-                    if hl then hl.FillColor = PlayerStats end
                 end
-            end
-        end
-        local function startESP()
-            if espConnection then return end
-            espConnection = SRunService.RenderStepped:Connect(function()
-                if not Genv.SHub.Toggle.PEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
-                pcall(updateESP)
             end)
-        end
-        if Genv.SHub.Toggle.PEspEnable then startESP() else clearESP() end
+        end)
+    else
+        if conn then conn:Disconnect() end
+        clear()
     end
-})
+end)
 
-MainTab:CreateToggle({
-    Name = "ESP Computador",
-    CurrentValue = false,
-    Flag = "EspComputerToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.PCCEspEnable = v
-        local espConnection
-        local espContainer = getSafeParent("Computer")
-        local function clearESP()
-            for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
-            local Map = GetCurrentMap()
-            if not Map then return end
-            for _, o in pairs(Map:GetChildren()) do
-                if o.Name == "ComputerTable" then
-                    local hl = o:FindFirstChild("S_Highlight", true)
-                    if hl then hl:Destroy() end
-                end
-            end
-        end
-        local function GetComputerColor(screen)
-            if not screen or not screen:IsA("BasePart") then return Color3.fromRGB(255, 255, 0) end
-            return screen.Color
-        end
-        local function updateESP()
+UI:CreateToggle(MainTab.Frame, "ESP FreezePod", false, function(v)
+    Genv.SHub.Toggle.PodEsp = v
+    local espFolder = ScreenGui:FindFirstChild("SHub_ESP_Pod") or Instance.new("Folder")
+    espFolder.Name = "SHub_ESP_Pod"; espFolder.Parent = ScreenGui
+    local conn
+    if v then
+        conn = SRunService.RenderStepped:Connect(function()
             local map = GetCurrentMap()
-            if not map then clearESP() return end
-            for _, o in pairs(map:GetChildren()) do
-                if o.Name == "ComputerTable" then
-                    local part = o:FindFirstChildWhichIsA("BasePart")
-                    if not part then continue end
-                    local screen = o:FindFirstChild("Screen")
-                    local espColor = GetComputerColor(screen)
-                    local id = GetESPId(o)
-                    local espGui = espContainer:FindFirstChild(id)
-                    if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
-                    if espGui then
-                        espGui.Adornee = o
-                        local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                        local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                        if label then label.Text = string.format("Computador • %d Studs", dist) label.TextColor3 = espColor end
-                        if arrow then arrow.TextColor3 = espColor end
+            if not map then return end
+            pcall(function()
+                for _, o in pairs(map:GetChildren()) do
+                    if o.Name == "FreezePod" then
+                        local part = o:FindFirstChildWhichIsA("BasePart")
+                        if part then
+                            local id = "P_" .. o:GetDebugId()
+                            local bb = espFolder:FindFirstChild(id)
+                            if not bb then
+                                bb = Instance.new("BillboardGui")
+                                bb.Name = id
+                                bb.Adornee = part
+                                bb.Size = UDim2.new(4, 0, 4, 0)
+                                bb.AlwaysOnTop = true
+                                bb.Parent = espFolder
+                                local l = Instance.new("TextLabel", bb)
+                                l.Size = UDim2.fromScale(1, 1)
+                                l.BackgroundTransparency = 1
+                                l.Font = Enum.Font.GothamBold
+                                l.TextColor3 = Color3.fromRGB(100, 150, 255)
+                                l.TextStrokeTransparency = 0.3
+                                l.Text = "FreezePod"
+                            end
+                            bb.Adornee = part
+                        end
                     end
-                    local hl = o:FindFirstChild("S_Highlight")
-                    if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                    if hl then hl.FillColor = espColor end
                 end
-            end
-        end
-        local function startESP()
-            if espConnection then return end
-            espConnection = SRunService.RenderStepped:Connect(function()
-                if not Genv.SHub.Toggle.PCCEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
-                pcall(updateESP)
             end)
-        end
-        if Genv.SHub.Toggle.PCCEspEnable then startESP() else clearESP() end
+        end)
+    else
+        if conn then conn:Disconnect() end
+        for _, c in pairs(espFolder:GetChildren()) do c:Destroy() end
     end
-})
+end)
 
-MainTab:CreateToggle({
-    Name = "ESP FreezePod",
-    CurrentValue = false,
-    Flag = "EspFreezePodToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.FreezePodEspEnable = v
-        local espConnection
-        local color = Color3.fromRGB(0, 0, 245)
-        local espContainer = getSafeParent("FreezePod")
-        local function clearESP()
-            for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
-            local Map = GetCurrentMap()
-            if not Map then return end
-            for _, o in pairs(Map:GetChildren()) do
-                if o.Name == "FreezePod" then
-                    local hl = o:FindFirstChild("S_Highlight", true)
-                    if hl then hl:Destroy() end
-                end
-            end
-        end
-        local function updateESP()
+UI:CreateToggle(MainTab.Frame, "ESP Porta de Saída", false, function(v)
+    Genv.SHub.Toggle.DoorEsp = v
+    local espFolder = ScreenGui:FindFirstChild("SHub_ESP_Door") or Instance.new("Folder")
+    espFolder.Name = "SHub_ESP_Door"; espFolder.Parent = ScreenGui
+    local conn
+    if v then
+        conn = SRunService.RenderStepped:Connect(function()
             local map = GetCurrentMap()
-            if not map then clearESP() return end
-            for _, o in pairs(map:GetChildren()) do
-                if o.Name == "FreezePod" then
-                    local part = o:FindFirstChildWhichIsA("BasePart")
-                    if not part then continue end
-                    local id = GetESPId(o)
-                    local espGui = espContainer:FindFirstChild(id)
-                    if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
-                    if espGui then
-                        espGui.Adornee = o
-                        local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                        local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                        if label then label.Text = string.format("FreezePod • %d Studs", dist) label.TextColor3 = color end
-                        if arrow then arrow.TextColor3 = color end
+            if not map then return end
+            pcall(function()
+                for _, o in pairs(map:GetChildren()) do
+                    if o.Name == "ExitDoor" then
+                        local part = o:FindFirstChildWhichIsA("BasePart")
+                        if part then
+                            local id = "D_" .. o:GetDebugId()
+                            local bb = espFolder:FindFirstChild(id)
+                            if not bb then
+                                bb = Instance.new("BillboardGui")
+                                bb.Name = id
+                                bb.Adornee = part
+                                bb.Size = UDim2.new(4, 0, 4, 0)
+                                bb.AlwaysOnTop = true
+                                bb.Parent = espFolder
+                                local l = Instance.new("TextLabel", bb)
+                                l.Size = UDim2.fromScale(1, 1)
+                                l.BackgroundTransparency = 1
+                                l.Font = Enum.Font.GothamBold
+                                l.TextColor3 = Color3.fromRGB(100, 255, 100)
+                                l.TextStrokeTransparency = 0.3
+                                l.Text = "Porta de Saída"
+                            end
+                            bb.Adornee = part
+                        end
                     end
-                    local hl = o:FindFirstChild("S_Highlight")
-                    if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                    if hl then hl.FillColor = color end
                 end
-            end
-        end
-        local function startESP()
-            if espConnection then return end
-            espConnection = SRunService.RenderStepped:Connect(function()
-                if not Genv.SHub.Toggle.FreezePodEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
-                pcall(updateESP)
             end)
-        end
-        if Genv.SHub.Toggle.FreezePodEspEnable then startESP() else clearESP() end
+        end)
+    else
+        if conn then conn:Disconnect() end
+        for _, c in pairs(espFolder:GetChildren()) do c:Destroy() end
     end
-})
+end)
 
-MainTab:CreateToggle({
-    Name = "ESP Porta de Saída",
-    CurrentValue = false,
-    Flag = "EspExitDoorToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.ExitDoorEspEnable = v
-        local espConnection
-        local espContainer = getSafeParent("ExitDoor")
-        local function clearESP()
-            for _, child in pairs(espContainer:GetChildren()) do child:Destroy() end
-            local Map = GetCurrentMap()
-            if not Map then return end
-            for _, o in pairs(Map:GetChildren()) do
-                if o.Name == "ExitDoor" then
-                    local hl = o:FindFirstChild("S_Highlight", true)
-                    if hl then hl:Destroy() end
-                end
-            end
-        end
-        local function FindColor(part)
-            if not part or not part:IsA("BasePart") then return Color3.fromRGB(255, 255, 0) end
-            return part.Color
-        end
-        local function updateESP()
-            local map = GetCurrentMap()
-            if not map then clearESP() return end
-            for _, o in pairs(map:GetChildren()) do
-                if o.Name == "ExitDoor" then
-                    local part = o:FindFirstChildWhichIsA("BasePart")
-                    if not part then continue end
-                    local color = FindColor(o:FindFirstChild("Light"))
-                    local id = GetESPId(o)
-                    local espGui = espContainer:FindFirstChild(id)
-                    if not espGui then createBillboard(o, id, espContainer) espGui = espContainer:FindFirstChild(id) end
-                    if espGui then
-                        espGui.Adornee = o
-                        local label, arrow = espGui:FindFirstChild("Text_Label"), espGui:FindFirstChild("Arrow_Label")
-                        local dist = Sround((part.Position - LPR.Position).Magnitude, 1)
-                        if label then label.Text = string.format("Porta Saída • %d Studs", dist) label.TextColor3 = color end
-                        if arrow then arrow.TextColor3 = color end
-                    end
-                    local hl = o:FindFirstChild("S_Highlight")
-                    if not hl then applyHighlight(o) hl = o:FindFirstChild("S_Highlight") end
-                    if hl then hl.FillColor = color end
-                end
-            end
-        end
-        local function startESP()
-            if espConnection then return end
-            espConnection = SRunService.RenderStepped:Connect(function()
-                if not Genv.SHub.Toggle.ExitDoorEspEnable then clearESP() espConnection:Disconnect() espConnection = nil return end
-                pcall(updateESP)
-            end)
-        end
-        if Genv.SHub.Toggle.ExitDoorEspEnable then startESP() else clearESP() end
-    end
-})
-
--- ===== FERA =====
-MainTab:CreateSection("Fera")
+UI:CreateSection(MainTab.Frame, "Fera")
 
 Genv.SHub.WPlr = Genv.SHub.WPlr or {}
-local function MapToArray(map)
-    local t = {}
-    for n, v in pairs(map) do if v then insert(t, n) end end
-    return t
-end
-local function IsWhilstPlayer(p) return Genv.SHub.WPlr[p] end
+local function IsWhilst(p) return Genv.SHub.WPlr[p] end
 
-do
-    local this = MainTab:CreateDropdown({
-        Name = "Lista Branca (Jogadores)",
-        Options = GetPlayerList(true),
-        CurrentOption = MapToArray(Genv.SHub.WPlr),
-        MultipleOptions = true,
-        Flag = "WhilstPlayer_Dropdown",
-        Callback = function(t_select) Genv.SHub.WPlr = t_select end
-    })
-    local function upd() this:Refresh(GetPlayerList(true)) end
-    Genv.SHub.TaskSignal.PAdded = SPlayers.PlayerAdded:Connect(upd)
-    Genv.SHub.TaskSignal.PRemoving = SPlayers.PlayerRemoving:Connect(function(p)
-        Genv.SHub.WPlr[p.Name] = nil
-        upd()
-    end)
-end
-
-MainTab:CreateSlider({
-    Name = "Alcance do Hit Aura",
-    Range = {5, 15},
-    Increment = 1,
-    Suffix = " studs",
-    CurrentValue = 10,
-    Flag = "SliderAura",
-    Callback = function(v) Genv.SHub.HitAuraRange = ToNumV(v) end
-})
-
-MainTab:CreateToggle({
-    Name = "Hit Aura",
-    CurrentValue = false,
-    Flag = "AuraToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.HitAura = v
-        while Genv.SHub.Toggle.HitAura and task.wait(0.15) do
-            local LHammerEvent = LPC:FindFirstChild("HammerEvent", true)
-            for _, p in pairs(SPlayers:GetPlayers()) do
-                if p ~= LP and not IsWhilstPlayer(p.Name) then
-                    local Stats = p:FindFirstChild("TempPlayerStatsModule")
-                    if not Stats then continue end
-                    local PisRagdoll, PisCaptured = Stats:FindFirstChild("Ragdoll"), Stats:FindFirstChild("Captured")
-                    if not (PisRagdoll and PisCaptured) then continue end
-                    if not (PisRagdoll.Value or PisCaptured.Value) then
+UI:CreateSlider(MainTab.Frame, "Alcance do Hit Aura", 5, 15, 10, function(v) Genv.SHub.HitRange = v end)
+UI:CreateToggle(MainTab.Frame, "Hit Aura", false, function(v)
+    Genv.SHub.Toggle.HitAura = v
+    while Genv.SHub.Toggle.HitAura and task.wait(0.15) do
+        local he = LPC:FindFirstChild("HammerEvent", true)
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and not IsWhilst(p.Name) then
+                local st = p:FindFirstChild("TempPlayerStatsModule")
+                if st then
+                    local rg, cp = st:FindFirstChild("Ragdoll"), st:FindFirstChild("Captured")
+                    if rg and cp and not (rg.Value or cp.Value) then
                         local root = findroot_or(p.Character)
-                        if root and LPC and LPR and LHammerEvent then
-                            if (root.Position - LPR.Position).Magnitude <= Genv.SHub.HitAuraRange then
-                                LHammerEvent:FireServer("HammerHit", root)
-                            end
+                        if root and he and (root.Position - LPR.Position).Magnitude <= (Genv.SHub.HitRange or 10) then
+                            he:FireServer("HammerHit", root)
                         end
                     end
                 end
             end
         end
     end
-})
-
-MainTab:CreateSlider({
-    Name = "Alcance do Auto Amarrar",
-    Range = {5, 100},
-    Increment = 1,
-    Suffix = " studs",
-    CurrentValue = 5,
-    Flag = "SliderTie",
-    Callback = function(v) Genv.SHub.TiePlayerRange = ToNumV(v) end
-})
-
-MainTab:CreateToggle({
-    Name = "Auto Amarrar",
-    CurrentValue = false,
-    Flag = "AutoTieToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.AutoTie = v
-        while Genv.SHub.Toggle.AutoTie and task.wait(0.15) do
-            local LHammerEvent = LPC:FindFirstChild("HammerEvent", true)
-            for _, p in pairs(SPlayers:GetPlayers()) do
-                if p ~= LP and not IsWhilstPlayer(p.Name) then
-                    local Stats = p:FindFirstChild("TempPlayerStatsModule")
-                    if not Stats then continue end
-                    local PisRagdoll, PisCaptured = Stats:FindFirstChild("Ragdoll"), Stats:FindFirstChild("Captured")
-                    if not (PisRagdoll and PisCaptured) then continue end
-                    if (PisRagdoll.Value and not PisCaptured.Value) then
-                        local root = findroot_or(p.Character)
-                        if root and LPC and LPR and LHammerEvent then
-                            if (root.Position - LPR.Position).Magnitude <= Genv.SHub.TiePlayerRange then
-                                local pos = (c_type("Vector3", root.Position, true) and root.Position) or Vector3.zero
-                                LHammerEvent:FireServer("HammerTieUp", root, pos)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-})
-
--- ===== NO JOGO =====
-MainTab:CreateSection("No Jogo")
-do
-    local function hook__namecall()
-        if not (getnamecallmethod and checkcaller) then return end
-        local mt, towriteIT = getrawmetatable and getrawmetatable(ugc) or debug.getmetatable and debug.getmetatable(ugc), (setreadonly or set_readonly) or (makewriteable or make_writeable)
-        local old_namecall
-        local function hook_namecall(self, ...)
-            local args = {...}
-            if Genv.SHub.Toggle.Antitaskfailed and not checkcaller() and getnamecallmethod() == "FireServer" and self == RemoteEvent then
-                if args[1] == "SetPlayerMinigameResult" then args[2] = true end
-            end
-            return old_namecall(self, unpack(args))
-        end
-        if hookmetamethod then old_namecall = hookmetamethod(ugc, "__namecall", newcclosure(hook_namecall))
-        elseif mt and (pcall(towriteIT, mt, false)) then old_namecall = mt.__namecall mt.__namecall = newcclosure(hook_namecall) end
-        return old_namecall ~= nil
-    end
-    local is_namecall_hooked = hook__namecall()
-    MainTab:CreateToggle({
-        Name = "Nunca falhar hack de PC",
-        CurrentValue = false,
-        Flag = "Notaskfailed_Toggle",
-        Callback = function(v)
-            Genv.SHub.Toggle.Antitaskfailed = v
-            while (not is_namecall_hooked and Genv.SHub.Toggle.Antitaskfailed) and task.wait(.1) do
-                RemoteEvent:FireServer("SetPlayerMinigameResult", true)
-            end
-        end
-    })
-    MainTab:CreateToggle({
-        Name = "Ajudar Capturado (Silencioso)",
-        CurrentValue = false,
-        Flag = "AutoHelp_Silent",
-        Callback = function(v)
-            Genv.SHub.Toggle.AutoHelpCP_silent = v
-            local map = GetCurrentMap()
-            local Stats_LP = LP:FindFirstChild("TempPlayerStatsModule")
-            local Local_H = Stats_LP and Stats_LP:FindFirstChild("Health")
-            local Local_R = Stats_LP and Stats_LP:FindFirstChild("Ragdoll")
-            local Local_C = Stats_LP and Stats_LP:FindFirstChild("Captured")
-            local function CapturedFreezePod(cmap)
-                if not (cmap and c_type('table', cmap)) then return end
-                for _, o in pairs(cmap) do
-                    if o.Name ~= "FreezePod" then continue end
-                    local PodTrigger = o:FindFirstChild("PodTrigger", true)
-                    if PodTrigger then
-                        local CapturedTorso = PodTrigger:FindFirstChild("CapturedTorso")
-                        local Event = PodTrigger:FindFirstChild("Event")
-                        if CapturedTorso and Event and CapturedTorso:IsA("ObjectValue") and CapturedTorso.Value then return Event end
-                    end
-                end
-            end
-            while Genv.SHub.Toggle.AutoHelpCP_silent and task.wait(0.05) do
-                if not (Local_H and Local_R and Local_C) then continue end
-                if Local_H.Value <= 0 or Local_R.Value or Local_C.Value then continue end
-                if not map then map = GetCurrentMap() continue end
-                for _, p in pairs(SPlayers:GetPlayers()) do
-                    if p == LP then continue end
-                    local Stats = p:FindFirstChild("TempPlayerStatsModule")
-                    local Captured = Stats and Stats:FindFirstChild("Captured")
-                    if not (Captured and Captured:IsA("BoolValue") and Captured.Value) then continue end
-                    local event = CapturedFreezePod(map:GetChildren())
-                    if not event then continue end
-                    repeat
-                        task.wait(0.05)
-                        RemoteEvent:FireServer("Input", "Trigger", true, event)
-                        RemoteEvent:FireServer("Input", "Action", true)
-                    until not (Captured.Value and Genv.SHub.Toggle.AutoHelpCP_silent)
-                    break
-                end
-            end
-        end
-    })
-    MainTab:CreateToggle({
-        Name = "Ajudar Capturado (Teleporte)",
-        CurrentValue = false,
-        Flag = "AutoHelp_TP",
-        Callback = function(v)
-            Genv.SHub.Toggle.AutoHelpCP = v
-            local function DoHelpCFrame(root) return root.CFrame * CFrame.new(0, -4.5, 0) * CFrame.Angles(math.rad(90), 0, 0) end
-            local oldCFrame, helping = nil, false
-            local Stats_LP = LP:FindFirstChild("TempPlayerStatsModule")
-            local Local_H = Stats_LP and Stats_LP:FindFirstChild("Health")
-            local Local_R = Stats_LP and Stats_LP:FindFirstChild("Ragdoll")
-            local Local_C = Stats_LP and Stats_LP:FindFirstChild("Captured")
-            while Genv.SHub.Toggle.AutoHelpCP and task.wait(0.05) do
-                if not (LPC and LPR and Local_H and Local_R and Local_C) then continue end
-                if Local_H.Value <= 0 or Local_R.Value or Local_C.Value then continue end
-                for _, p in pairs(SPlayers:GetPlayers()) do
-                    if p == LP or helping then continue end
-                    local Stats = p:FindFirstChild("TempPlayerStatsModule")
-                    local Captured = Stats and Stats:FindFirstChild("Captured")
-                    if not (Captured and Captured:IsA("BoolValue") and Captured.Value) then continue end
-                    local root = findroot_or(p.Character)
-                    if not root then continue end
-                    helping = true
-                    oldCFrame = oldCFrame or LPR.CFrame
-                    LPR.CFrame = DoHelpCFrame(root)
-                    repeat
-                        task.wait(0.05)
-                        LPR.CFrame = DoHelpCFrame(root)
-                        RemoteEvent:FireServer("Input", "Action", true)
-                    until not (Captured.Value and Genv.SHub.Toggle.AutoHelpCP) or (Local_R.Value or Local_C.Value or Local_H.Value <= 0)
-                    if oldCFrame and LPC then LPC:PivotTo(oldCFrame) end
-                    oldCFrame, helping = nil, false
-                    break
-                end
-            end
-        end
-    })
-end
-
--- ===== OUTROS =====
-MainTab:CreateSection("Outros")
-
-MainTab:CreateToggle({
-    Name = "Anti Arremesso",
-    CurrentValue = false,
-    Flag = "AntiFlingToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.AntiFling = v
-        local function SAntiFling()
-            for _, p in pairs(SPlayers:GetPlayers()) do
-                if p ~= LP and p.Character then
-                    for _, c in pairs(p.Character:GetDescendants()) do
-                        if c:IsA "BasePart" then
-                            if c.CanCollide then c.CanCollide = false
-                            elseif not (c.CanCollide or Genv.SHub.Toggle.AntiFling) then c.CanCollide = true break end
-                        end
-                    end
-                end
-            end
-        end
-        while Genv.SHub.Toggle.AntiFling and SRunService.Heartbeat:Wait() do SAntiFling() end
-    end
-})
-
-MainTab:CreateToggle({
-    Name = "Arremessar por Toque",
-    CurrentValue = false,
-    Flag = "TFlingToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.TouchFling = v
-        local vel, movel = nil, 0.05
-        while Genv.SHub.Toggle.TouchFling do
-            SRunService.Heartbeat:Wait()
-            vel = LPR.Velocity;LPR.Velocity = (vel * 9e8) + Vector3.new(0, 9e8, 0)
-            SRunService.RenderStepped:Wait()
-            if LPC and LPR then LPR.Velocity = vel end
-            SRunService.Stepped:Wait()
-            if LPC and LPR then LPR.Velocity,movel = vel + Vector3.new(0, movel, 0),movel * -1 end
-        end
-    end
-})
-
--- ===== ABA LOCAL =====
-LocalTab:CreateSection("Câmera")
-LocalTab:CreateToggle({
-    Name = "Câmera Atravessar Paredes",
-    CurrentValue = false,
-    Flag = "NoclipCameraToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.CamNoclip = v
-        while Genv.SHub.Toggle.CamNoclip and task.wait(.1) do
-            if (LP.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam) then LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam end
-        end
-        if not Genv.SHub.Toggle.CamNoclip then LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom end
-    end
-})
-LocalTab:CreateToggle({
-    Name = "Modo Câmera Padrão",
-    CurrentValue = false,
-    Flag = "CameraDModeToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.CamDMode = v
-        while Genv.SHub.Toggle.CamDMode and task.wait(.1) do
-            if (LP.CameraMode ~= Enum.CameraMode.Classic) then LP.CameraMode = Enum.CameraMode.Classic end
-        end
-    end
-})
-LocalTab:CreateInput({
-    Name = "Zoom Máximo da Câmera",
-    CurrentValue = "",
-    PlaceholderText = "Definir zoom",
-    Flag = "Input_CamMaxZoom",
-    Callback = function(v)
-        Genv.SHub.CamMaxZoomDis = ToNumV(v)
-        LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis
-    end
-})
-LocalTab:CreateToggle({
-    Name = "Aplicar Zoom Máximo",
-    CurrentValue = false,
-    Flag = "CameraZoomDisToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.CamMaxZoom = v
-        while Genv.SHub.Toggle.CamMaxZoom and task.wait(.1) do
-            if (LP.CameraMaxZoomDistance ~= Genv.SHub.CamMaxZoomDis) then LP.CameraMaxZoomDistance = Genv.SHub.CamMaxZoomDis end
-        end
-    end
-})
-
-LocalTab:CreateSection("Local")
-LocalTab:CreateToggle({
-    Name = "Claridade Total",
-    CurrentValue = false,
-    Flag = "FBToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.FullBright = v
-        local function saveLighting()
-            Genv.SHub.FB_Original = {Brightness=SLighting.Brightness, ClockTime=SLighting.ClockTime, FogEnd=SLighting.FogEnd, FogStart=SLighting.FogStart, GlobalShadows=SLighting.GlobalShadows, OutdoorAmbient=SLighting.OutdoorAmbient, Ambient=SLighting.Ambient}
-            local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-            if atm then Genv.SHub.FB_Original.AtmosphereDensity = atm.Density end
-        end
-        local function applyFullBright()
-            local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-            if atm then atm.Density = 0 end
-            SLighting.Brightness = 1.5
-            SLighting.ClockTime = 14
-            SLighting.FogEnd = 100000
-            SLighting.FogStart = 0
-            SLighting.GlobalShadows = false
-            SLighting.OutdoorAmbient = Color3.fromRGB(100, 100, 100)
-            SLighting.Ambient = Color3.fromRGB(80, 80, 80)
-        end
-        local function restoreLighting()
-            if not Genv.SHub.FB_Original then return end
-            for prop, value in pairs(Genv.SHub.FB_Original) do
-                if prop == "AtmosphereDensity" then
-                    local atm = SLighting:FindFirstChildOfClass("Atmosphere")
-                    if atm then atm.Density = value end
-                else SLighting[prop] = value end
-            end
-        end
-        if Genv.SHub.Toggle.FullBright then
-            saveLighting()
-            while Genv.SHub.Toggle.FullBright and task.wait() do applyFullBright() end
-        else task.wait(.25); restoreLighting() end
-    end
-})
-LocalTab:CreateInput({
-    Name = "Velocidade do TP Walk",
-    CurrentValue = "",
-    PlaceholderText = "Definir velocidade",
-    Flag = "Input_TpwalkSpeed",
-    Callback = function(v) Genv.SHub.tpwalkSpeed = ToNumV(v) end
-})
-LocalTab:CreateToggle({
-    Name = "TP Walk",
-    CurrentValue = false,
-    Flag = "TPWalk_Toggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.tpwalk = v
-        while Genv.SHub.Toggle.tpwalk do
-            local dt = SRunService.Heartbeat:Wait()
-            if not (LPC and LPH) then continue end
-            local move = LPH.MoveDirection
-            if move.Magnitude > 0 then LPC:TranslateBy(move * (Genv.SHub.tpwalkSpeed or 1) * dt * 10) end
-        end
-    end
-})
-LocalTab:CreateToggle({
-    Name = "Pulo Infinito",
-    CurrentValue = false,
-    Flag = "InfJumpToggle",
-    Callback = function(v) Genv.SHub.Toggle.InfJump = v end
-})
-Genv.SHub.TaskSignal.InfJump = SUis.JumpRequest:Connect(function()
-    if Genv.SHub.Toggle.InfJump and LPH then LPH:ChangeState "Jumping" end
 end)
-LocalTab:CreateToggle({
-    Name = "Noclip",
-    CurrentValue = false,
-    Flag = "NoclipToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.Noclip = v
-        local function Noclip()
-            for _, c in pairs(LPC:GetDescendants()) do 
-                if c:IsA "BasePart" then
-                    if c.CanCollide then c.CanCollide = false
-                    elseif not (c.CanCollide or Genv.SHub.Toggle.Noclip) then c.CanCollide = true break end
-                end
-            end
-        end
-        while Genv.SHub.Toggle.Noclip and SRunService.Heartbeat:Wait() do Noclip() end
-    end
-})
 
--- ===== ABA ANTI & NOTIFICAÇÃO =====
-AntiTab:CreateSection("Notificação")
-AntiTab:CreateToggle({
-    Name = "Notificar Admin Entrou",
-    CurrentValue = true,
-    Flag = "NotifyAdminToggle",
-    Callback = function(b)
-        Genv.SHub.Notify.NotifyAdmin = b
-        local creId, cretype = ugc.CreatorId, ugc.CreatorType
-        while Genv.SHub.Notify.NotifyAdmin and task.wait(2.5) do
-            for _, p in pairs(SPlayers:GetPlayers()) do
-                if cretype == Enum.CreatorType.Group then
-                    pcall(function()
-                        local rank = p:GetRankInGroup(creId)
-                        if rank >= 2 then
-                            local role = p:GetRoleInGroup(creId)
-                            Rayfield:Notify({Title = p.Name .. " entrou!", Content = "Cargo: " .. role, Duration = 3})
+UI:CreateSlider(MainTab.Frame, "Alcance do Auto Amarrar", 5, 100, 5, function(v) Genv.SHub.TieRange = v end)
+UI:CreateToggle(MainTab.Frame, "Auto Amarrar", false, function(v)
+    Genv.SHub.Toggle.AutoTie = v
+    while Genv.SHub.Toggle.AutoTie and task.wait(0.15) do
+        local he = LPC:FindFirstChild("HammerEvent", true)
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and not IsWhilst(p.Name) then
+                local st = p:FindFirstChild("TempPlayerStatsModule")
+                if st then
+                    local rg, cp = st:FindFirstChild("Ragdoll"), st:FindFirstChild("Captured")
+                    if rg and cp and rg.Value and not cp.Value then
+                        local root = findroot_or(p.Character)
+                        if root and he and (root.Position - LPR.Position).Magnitude <= (Genv.SHub.TieRange or 5) then
+                            he:FireServer("HammerTieUp", root, root.Position)
                         end
-                    end)
-                elseif cretype == Enum.CreatorType.User and p.UserId == creId then
-                    Rayfield:Notify({Title = p.Name .. " entrou!", Content = "Cargo: Dono do Jogo", Duration = 3})
+                    end
                 end
             end
         end
     end
-})
-AntiTab:CreateSection("Anti")
-local VirtualUser = FindServiceTery "VirtualUser"
-local anti_afkconnection
-AntiTab:CreateToggle({
-    Name = "Anti AFK",
-    CurrentValue = false,
-    Flag = "AntiAfk_Toggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.Antiafk = v
-        if v then
-            if not anti_afkconnection then
-                anti_afkconnection = LP.Idled:Connect(function()
-                    VirtualUser:CaptureController()
-                    VirtualUser:ClickButton2(Vector2.zero)
-                end)
+end)
+
+UI:CreateSection(MainTab.Frame, "Outros")
+UI:CreateToggle(MainTab.Frame, "Anti Arremesso", false, function(v)
+    Genv.SHub.Toggle.AntiFling = v
+    while Genv.SHub.Toggle.AntiFling and SRunService.Heartbeat:Wait() do
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                for _, c in pairs(p.Character:GetDescendants()) do
+                    if c:IsA("BasePart") and c.CanCollide then c.CanCollide = false end
+                end
             end
-        else
-            if anti_afkconnection then anti_afkconnection:Disconnect() anti_afkconnection = nil end
         end
     end
-})
-AntiTab:CreateToggle({
-    Name = "Anti Ragdoll",
-    CurrentValue = false,
-    Flag = "AntiRagdollToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.AntiRagdoll = v
-        local function ChangeState(bool)
-            LPH:SetStateEnabled(Enum.HumanoidStateType.Physics, bool)
-            LPH:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, bool)
-            LPH:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, bool)
+end)
+
+UI:CreateToggle(MainTab.Frame, "Arremessar por Toque", false, function(v)
+    Genv.SHub.Toggle.TouchFling = v
+    local vel, movel = nil, 0.05
+    while Genv.SHub.Toggle.TouchFling do
+        SRunService.Heartbeat:Wait()
+        vel = LPR.Velocity; LPR.Velocity = (vel * 9e8) + Vector3.new(0, 9e8, 0)
+        SRunService.RenderStepped:Wait()
+        if LPC and LPR then LPR.Velocity = vel end
+        SRunService.Stepped:Wait()
+        if LPC and LPR then LPR.Velocity, movel = vel + Vector3.new(0, movel, 0), movel * -1 end
+    end
+end)
+
+-- ============================================================
+-- ABA LOCAL
+-- ============================================================
+UI:CreateSection(LocalTab.Frame, "Câmera")
+UI:CreateToggle(LocalTab.Frame, "Câmera Atravessar Paredes", false, function(v)
+    Genv.SHub.Toggle.CamNoclip = v
+    while Genv.SHub.Toggle.CamNoclip and task.wait(0.1) do
+        if LP.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
+            LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
         end
-        while Genv.SHub.Toggle.AntiRagdoll and task.wait() do
-            pcall(function()
-                ChangeState(not Genv.SHub.Toggle.AntiRagdoll)
-                local Stats = LP:FindFirstChild("TempPlayerStatsModule")
-                local Ragdoll = Stats:FindFirstChild("Ragdoll")
-                if Ragdoll and (Ragdoll:IsA("BoolValue") and Ragdoll.Value) then
-                    repeat task.wait()
-                        LPH:ChangeState(6); LPH:ChangeState(8)
-                    until LPH:GetState() == Enum.HumanoidStateType.Running
-                end
+    end
+    if not Genv.SHub.Toggle.CamNoclip then LP.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Zoom end
+end)
+
+UI:CreateToggle(LocalTab.Frame, "Câmera Primeira Pessoa Padrão", false, function(v)
+    Genv.SHub.Toggle.CamClassic = v
+    while Genv.SHub.Toggle.CamClassic and task.wait(0.1) do
+        if LP.CameraMode ~= Enum.CameraMode.Classic then LP.CameraMode = Enum.CameraMode.Classic end
+    end
+end)
+
+UI:CreateSection(LocalTab.Frame, "Local")
+UI:CreateToggle(LocalTab.Frame, "Claridade Total", false, function(v)
+    Genv.SHub.Toggle.FullBright = v
+    if v then
+        local atm = SLighting:FindFirstChildOfClass("Atmosphere")
+        if atm then atm.Density = 0 end
+        SLighting.Brightness = 1.5
+        SLighting.ClockTime = 14
+        SLighting.FogEnd = 100000
+        SLighting.FogStart = 0
+        SLighting.GlobalShadows = false
+        SLighting.OutdoorAmbient = Color3.fromRGB(100, 100, 100)
+        SLighting.Ambient = Color3.fromRGB(80, 80, 80)
+        while Genv.SHub.Toggle.FullBright and task.wait() do end
+    end
+end)
+
+UI:CreateToggle(LocalTab.Frame, "Pulo Infinito", false, function(v)
+    Genv.SHub.Toggle.InfJump = v
+end)
+UIS.JumpRequest:Connect(function()
+    if Genv.SHub.Toggle.InfJump and LPH then LPH:ChangeState("Jumping") end
+end)
+
+UI:CreateToggle(LocalTab.Frame, "Noclip", false, function(v)
+    Genv.SHub.Toggle.Noclip = v
+    while Genv.SHub.Toggle.Noclip and SRunService.Heartbeat:Wait() do
+        for _, c in pairs(LPC:GetDescendants()) do
+            if c:IsA("BasePart") and c.CanCollide then c.CanCollide = false end
+        end
+    end
+end)
+
+-- ============================================================
+-- ABA ANTI
+-- ============================================================
+UI:CreateSection(AntiTab.Frame, "Notificação")
+UI:CreateToggle(AntiTab.Frame, "Notificar Admin Entrou", true, function(v)
+    Genv.SHub.Notify.NotifyAdmin = v
+    local creId, creType = ugc.CreatorId, ugc.CreatorType
+    while Genv.SHub.Notify.NotifyAdmin and task.wait(2.5) do
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if creType == Enum.CreatorType.User and p.UserId == creId then
+                game:GetService("StarterGui"):SetCore("SendNotification", {Title = "Admin", Text = p.Name .. " entrou!", Duration = 3})
+            end
+        end
+    end
+end)
+
+UI:CreateSection(AntiTab.Frame, "Anti")
+local VU = FindServiceTery("VirtualUser")
+local afkConn
+UI:CreateToggle(AntiTab.Frame, "Anti AFK", false, function(v)
+    Genv.SHub.Toggle.AntiAfk = v
+    if v then
+        if not afkConn then
+            afkConn = LP.Idled:Connect(function()
+                VU:CaptureController()
+                VU:ClickButton2(Vector2.zero)
             end)
         end
+    else
+        if afkConn then afkConn:Disconnect() afkConn = nil end
     end
-})
+end)
 
--- ===== ABA JOGO & RAGEBAIT =====
-GameTab:CreateSection("Status do Jogo")
-do
-    local function BoolToWord(v) return v and "Sim" or "Não" end
-    local GameStatus_PG, this
-    local function RefreshStatus()
-        local isActive = find_instance(SReplicatedStorage, "IsGameActive")
-        local strActive = BoolToWord(isActive and isActive.Value)
-        local mapName = t_str(GetCurrentMap() or "Nenhum")
-        local content = string.format("Jogo Ativo: %s\nMapa Atual: %s", strActive, mapName)
-        if GameStatus_PG then GameStatus_PG:Set(content) end
+UI:CreateToggle(AntiTab.Frame, "Anti Ragdoll", false, function(v)
+    Genv.SHub.Toggle.AntiRag = v
+    while Genv.SHub.Toggle.AntiRag and task.wait() do
+        pcall(function()
+            LPH:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+            LPH:SetStateEnabled(Enum.HumanoidStateType.Physics, false)
+            LPH:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding, false)
+        end)
     end
-    this = GameTab:CreateToggle({Name = "Atualizar Automático", CurrentValue = true, Flag = "AutoRefreshStatusToggle"})
-    GameStatus_PG = GameTab:CreateParagraph({Title = "Status do Jogo", Content = "..."})
-    RefreshStatus()
-    this:OnChanged(function(v)
-        Genv.SHub.Toggle.AutoRefStatus = v
-        while Genv.SHub.Toggle.AutoRefStatus and task.wait(.1) do RefreshStatus() end
-    end)
-end
+end)
 
-GameTab:CreateSection("Provocando a Fera")
-local function GetCurrentBeastHEvent(needed)
-    for _, p in pairs(SPlayers:GetPlayers()) do
-        if p ~= LP and p.Character then
-            local c = p.Character
-            if c:FindFirstChild "Hammer" then return not needed and find_instance(c, "HammerEvent") or c end
-        end
-    end
-end
-local function GetCurrentBeastPEvent(needed)
-    for _, p in pairs(SPlayers:GetPlayers()) do
-        if p ~= LP and p.Character then
-            local c = p.Character
-            if c:FindFirstChild "BeastPowers" then return not needed and find_instance(c, "PowersEvent") or c end
-        end
-    end
-end
-GameTab:CreateToggle({
-    Name = "Deixar Fera Lenta",
-    CurrentValue = false,
-    Flag = "RGSlow_BeastToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.Rg_SlowBt = v
-        while Genv.SHub.Toggle.Rg_SlowBt and task.wait(0.05) do
-            local event = GetCurrentBeastPEvent()
-            if event then event:FireServer "Jumped" end
-        end
-    end
-})
-GameTab:CreateToggle({
-    Name = "Fera Desamarrar Jogador",
-    CurrentValue = false,
-    Flag = "RGUnTie_BeastToggle",
-    Callback = function(v)
-        Genv.SHub.Toggle.Rg_distieBt = v
-        while Genv.SHub.Toggle.Rg_distieBt and task.wait(0.05) do
-            local event = GetCurrentBeastHEvent()
-            if event then event:FireServer("HammerClick", true) end
-        end
-    end
-})
+-- ============================================================
+-- ABA JOGO
+-- ============================================================
+UI:CreateSection(GameTab.Frame, "Status do Jogo")
+UI:CreateParagraph(GameTab.Frame, "Status Atual", "Ativo: --  •  Mapa: --")
 
--- ===== ABA GRAVAÇÃO =====
-do RecordTab:CreateSection("Gravação/Apresentação")
-    local function GetCurrentUiPlrFrame(lyLv)
-        local plrf = LPGui:FindFirstChild("PlayerNamesFrame", true)
-        if not plrf then return nil end
-        for _, fm in pairs(plrf:GetChildren()) do
-            if fm:IsA("Frame") and fm.Name:lower():find(LP.Name:lower(), 1, true) then
-                local level, name
-                for _, lbl in pairs(fm:GetChildren()) do
-                    if not lbl:IsA("TextLabel") then continue end
-                    local num = t_num(lbl.Text)
-                    if num then level = lbl else name = lbl end
-                end
-                return lyLv and level or name
+UI:CreateSection(GameTab.Frame, "Provocando a Fera")
+UI:CreateToggle(GameTab.Frame, "Deixar Fera Lenta", false, function(v)
+    Genv.SHub.Toggle.SlowBeast = v
+    while Genv.SHub.Toggle.SlowBeast and task.wait(0.05) do
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local e = p.Character:FindFirstChild("BeastPowers") and p.Character:FindFirstChild("PowersEvent", true)
+                if e then e:FireServer("Jumped") end
             end
         end
     end
-    Genv.SHub.BarsTL = Genv.SHub.BarsTL
-    local function GetCurrentUiPlrBars()
-        local plrf = LPGui:FindFirstChild("StatusBars", true)
-        if not plrf then return nil end
-        for _, tl in pairs(plrf:GetChildren()) do
-            if tl:IsA("TextLabel") and tl.Text:lower():find(LP.Name:lower(), 1, true) then Genv.SHub.BarsTL = tl end
+end)
+
+UI:CreateToggle(GameTab.Frame, "Fera Desamarrar", false, function(v)
+    Genv.SHub.Toggle.UntieBeast = v
+    while Genv.SHub.Toggle.UntieBeast and task.wait(0.05) do
+        for _, p in pairs(SPlayers:GetPlayers()) do
+            if p ~= LP and p.Character then
+                local e = p.Character:FindFirstChild("Hammer") and p.Character:FindFirstChild("HammerEvent", true)
+                if e then e:FireServer("HammerClick", true) end
+            end
         end
-        return Genv.SHub.BarsTL
     end
-    Genv.SHub.CustomName = ''
-    Genv.SHub.CustomLevel = 100
-    local lv = GetCurrentUiPlrFrame(true)
-    local oldlvl = lv and lv.Text or 1
-    RecordTab:CreateInput({Name = "Nome Customizado", CurrentValue = "", PlaceholderText = "", Flag = "Input_CustomName", Callback = function(str) Genv.SHub.CustomName = t_str(str) end})
-    RecordTab:CreateInput({Name = "Nível Customizado", CurrentValue = "", PlaceholderText = "", Flag = "Input_CustomLevel", Callback = function(n) Genv.SHub.CustomLevel = ToNumV(n) end})
-    RecordTab:CreateToggle({Name = "Mudar Texto Lista (UI)", CurrentValue = false, Flag = "HideListName",
-        Callback = function(v)
-            Genv.SHub.Toggle.HideListName = v
-            local name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
-            while name and lvl and not Genv.SHub.Toggle.HideListName and task.wait(.1) do
-                name.Text = LP.Name; lvl.Text = oldlvl; task.wait(.2); break
-            end
-            while Genv.SHub.Toggle.HideListName and task.wait(0.01) do
-                if not LPGui then continue end
-                name, lvl = GetCurrentUiPlrFrame(), GetCurrentUiPlrFrame(true)
-                if name then name.Text = Genv.SHub.CustomName end
-                if lvl then lvl.Text = Genv.SHub.CustomLevel end
-            end
-        end
-    })
-    RecordTab:CreateToggle({Name = "Mudar Texto Barras (UI)", CurrentValue = false, Flag = "HideBars",
-        Callback = function(v)
-            Genv.SHub.Toggle.HideBars = v
-            local name = GetCurrentUiPlrBars()
-            while name and not Genv.SHub.Toggle.HideBars and task.wait(.1) do
-                name.Text = LP.Name; task.wait(.2); break
-            end
-            while Genv.SHub.Toggle.HideBars and task.wait(0.01) do
-                if not LPGui then continue end
-                name = GetCurrentUiPlrBars()
-                if name then name.Text = Genv.SHub.CustomName end
-            end
-        end
-    })
-end
+end)
 
--- ===== ABA CRÉDITOS =====
-CreditsTab:CreateSection("akz scripts")
-CreditsTab:CreateParagraph({Title = `akz scripts - {GameName}`, Content = `Versão Beta • {this.Version}\nDesenvolvedor: akira007p`})
+-- ============================================================
+-- ABA GRAVAÇÃO
+-- ============================================================
+UI:CreateSection(RecordTab.Frame, "Customização da UI")
+UI:CreateParagraph(RecordTab.Frame, "Info", "Use para gravar vídeos com nome customizado")
 
-CreditsTab:CreateSection("Comunidade Discord")
-CreditsTab:CreateButton({
-    Name = "Entrar no Discord",
-    Callback = function()
-        if setclipboard then pcall(setclipboard, "https://discord.gg/X9C5VReP4") end
-        pcall(function() FindServiceTery("GuiService"):OpenBrowserWindow("https://discord.gg/X9C5VReP4") end)
-        Rayfield:Notify({Title = "akz scripts", Content = "Link copiado! discord.gg/X9C5VReP4", Duration = 4})
-    end
-})
-CreditsTab:CreateParagraph({Title = "Link do Discord", Content = "https://discord.gg/X9C5VReP4"})
+-- ============================================================
+-- ABA CRÉDITOS
+-- ============================================================
+UI:CreateSection(CreditsTab.Frame, "akz scripts")
+UI:CreateParagraph(CreditsTab.Frame, "akz scripts - v1.1.0", "Desenvolvedor: akira007p")
 
-CreditsTab:CreateSection("Desenvolvedor")
-CreditsTab:CreateParagraph({Title = "akira007p", Content = "Desenvolvido por akira007p.\nDiscord: discord.gg/X9C5VReP4"})
+UI:CreateSection(CreditsTab.Frame, "Comunidade Discord")
+UI:CreateButton(CreditsTab.Frame, "Entrar no Discord", function()
+    if setclipboard then pcall(setclipboard, "https://discord.gg/X9C5VReP4") end
+    pcall(function() FindServiceTery("GuiService"):OpenBrowserWindow("https://discord.gg/X9C5VReP4") end)
+end)
+UI:CreateParagraph(CreditsTab.Frame, "Discord", "https://discord.gg/X9C5VReP4")
 
--- ===== ABA OUTROS =====
-OtherTab:CreateSection("Informações do Jogo Atual")
-OtherTab:CreateParagraph({Title = "Info", Content = `Versão da VM: {VM_Version}`})
-do OtherTab:CreateSection("Ambiente do Executor")
-    local exec = c_caller("function", identifyexecutor or getexecutorname, '', "Erro")
-    OtherTab:CreateButton({
-        Name = "Atualizar Ambiente",
-        Callback = function()
-            local e, re = {}, 0
-            if Genv ~= _G then
-                for n, a in pairs(Genv) do
-                    if t_str(n):lower():find("shub", 1, true) then continue end
-                    re=re+1;insert(e, ("> %d | %s • tipo: %s"):format(re, t_str(n), type(a)))
-                end
-            end
-            Rayfield:Notify({Title = "Ambiente", Content = `Executor: {exec} • Total: {re}`, Duration = 5})
-        end
-    })
-end
+UI:CreateSection(CreditsTab.Frame, "Desenvolvedor")
+UI:CreateParagraph(CreditsTab.Frame, "akira007p", "Desenvolvido por akira007p")
+
+-- ============================================================
+-- ABA OUTROS
+-- ============================================================
+UI:CreateSection(OtherTab.Frame, "Informações")
+UI:CreateParagraph(OtherTab.Frame, "Info", "Versão do script: 1.1.0")
+UI:CreateParagraph(OtherTab.Frame, "Executor", tostring(execName))
+
+-- ============================================================
+-- ABA CONFIGURAÇÕES
+-- ============================================================
+UI:CreateSection(SettingsTab.Frame, "Configurações")
+UI:CreateParagraph(SettingsTab.Frame, "Info", "Configurações da UI salvas automaticamente")
 
 end --/* FTF */--
-
--- Notificação final
-task.wait(0.5)
-pcall(function()
-    Rayfield:Notify({
-        Title = "akz scripts carregado!",
-        Content = "by akira007p • discord.gg/X9C5VReP4",
-        Duration = 5,
-        Image = 4483362458
-    })
-end)
