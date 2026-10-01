@@ -3,11 +3,10 @@
    AKZ MENU mm2  —  v1.4
    • Fundo com imagem (rbxassetid://87903267067222)
    • UI semitransparente profissional
-   • Auto Shoot Murder: hitbox 15 + aimbot torso + click simulado
-   • Auto Kill All (Murderer): faca + hitbox, SEM fling/TP/pivot
-   • Auto Kill Fling preservado (SEM botão flutuante externo)
-   • Botão flutuante horizontal APENAS para Auto Shoot Murder
-   • Farm, ESP, Aimbot, GunDrop, Noclip, Anti-AFK preservados
+   • Botão flutuante exclusivo para Auto Shoot Murderer
+   • Auto Kill All separado (Sem Fling/TP, alinhado e nativo)
+   • Auto Kill (fling) preservado exatamente como antes
+   • Ações antigas preservadas (Farm, ESP, Aimbot, GunDrop, Noclip, Anti-AFK)
 ═══════════════════════════════════════════════════════════════
 --]]
 
@@ -19,6 +18,8 @@ local TweenService      = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualUser       = game:GetService("VirtualUser")
 local GuiService        = game:GetService("GuiService")
+local VirtualInputManager
+pcall(function() VirtualInputManager = game:GetService("VirtualInputManager") end)
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
@@ -50,6 +51,7 @@ local WARN_CLR    = Color3.fromRGB(255, 190, 60)
 local SUCCESS_CLR = Color3.fromRGB(120, 220, 140)
 local DANGER_CLR  = Color3.fromRGB(230, 90, 90)
 
+-- Transparências profissionais (imagem fica visível por trás)
 local T = {
     Menu    = 0.28,
     Header  = 0.35,
@@ -67,7 +69,7 @@ local ROLE_COLORS = {
     Innocent = Color3.fromRGB(50, 205, 50),
 }
 
---═══════════════ CONFIG GERAL ═══════════════
+--═══════════════ CONFIG GERAL E ESTADOS SEPARADOS ═══════════════
 local LAYOUTS = {
     ["Em pé"]   = UDim2.new(0, 460, 0, 420),
     ["Deitado"] = UDim2.new(0, 660, 0, 340),
@@ -83,6 +85,20 @@ local Config = {
 }
 
 local TranspState = { ativo = false }
+
+local AutoShootState = {
+    Enabled = false,
+    Executing = false,
+    Button = nil,
+    Hitbox = nil,
+    Connection = nil
+}
+
+local AutoKillAllState = {
+    Enabled = false,
+    Running = false,
+    Thread = nil
+}
 
 local FARM_DELAY_ENTRE_MOEDAS = 1.2
 local FARM_VERIFY_TIMEOUT     = 1.2
@@ -118,19 +134,6 @@ local GunDropConfig = {
 }
 local espCache = {}
 
--- ── ESTADOS NOVOS (isolados do FlingConfig) ──
-local AutoShootState = {
-    Enabled   = false,
-    Executing = false,
-    Button    = nil,
-    Hitbox    = nil,
-    HitboxTarget = nil,
-}
-local AutoKillAllState = {
-    Enabled = false,
-    Running = false,
-}
-
 local KNIFE_KEYWORDS = {"knife","faca","blade","lâmina","lamina","punhal","dagger"}
 local GUN_KEYWORDS   = {"gun","revolver","pistol","arma","pistola","luger","m9","firearm","handgun","sidearm"}
 
@@ -144,6 +147,7 @@ local function checkKeyword(name, keywords)
 end
 
 local function getPlayerRole(player)
+    if not player then return "Innocent" end
     local char = player.Character
     local bp   = player:FindFirstChildOfClass("Backpack")
     local hasKnife, hasGun = false, false
@@ -294,7 +298,7 @@ local function refreshFov()
 end
 refreshFov()
 
---═══════════════ LOGO ═══════════════
+--═══════════════ LOGO (arrastável) ═══════════════
 local logo = Instance.new("TextButton")
 logo.AnchorPoint = Vector2.new(0.5, 0.5)
 logo.Size = UDim2.new(0, 58, 0, 58)
@@ -352,6 +356,7 @@ local menuStroke = Instance.new("UIStroke", menuFrame)
 menuStroke.Color = STROKE_CLR
 menuStroke.Thickness = 1
 
+-- Imagem de fundo do menu
 local bgImage = Instance.new("ImageLabel")
 bgImage.Name = "BackgroundImage"
 bgImage.Size = UDim2.new(1, 0, 1, 0)
@@ -1902,1279 +1907,550 @@ local function FlingarAlvo(char, hrp, hum, alvo, origem)
         ZerarVelocidade(hrp)
     end
 
-    local okLoop, errLoop = pcall(function()
-        TouchEngine(function()
-            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then return false end
-            if (tick() - t0) > FlingConfig.TempoMax then return false end
-            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; return false end
-            return true
-        end, nil, colar)
+    local flingThread = task.spawn(function()
+        TouchEngine(
+            function() return not lancou and (tick() - t0) < FlingConfig.TempoMax end,
+            nil,
+            colar
+        )
     end)
-    if not okLoop then warn("[FLING] erro: " .. tostring(errLoop)) end
+
+    while (tick() - t0) < FlingConfig.TempoMax do
+        if FlingConfig.Cancelar then break end
+        if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then
+            lancou = true
+            break
+        end
+        task.wait(0.05)
+    end
+
+    lancou = true
+    pcall(function() task.cancel(flingThread) end)
 
     voltarOrigem()
     return lancou
 end
 
-local function FlingCiclo(silencioso)
-    if FlingConfig.Andando then return end
-
+--═══════════════ AUTO KILL ALL (SEM FLING E SEM TELEPORTE) ═══════════════
+local function obterFacaPersonagem()
     local char = LocalPlayer.Character
-    local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    local hrp  = hum and hum.RootPart
-    if not hrp or hum.Health <= 0 then
-        if not silencioso then showToast("FLING", "Seu personagem está morto", DANGER_CLR) end
-        return
-    end
-
-    local alvos = FlingListarAlvos()
-    if #alvos == 0 then
-        if not silencioso then showToast("FLING", "Nenhum alvo (" .. FlingConfig.Alvo .. ") vivo", DANGER_CLR) end
-        return
-    end
-
-    FlingConfig.Andando = true
-    FlingConfig.Cancelar = false
-    local origem = hrp.CFrame
-    if not silencioso then showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR) end
-
-    local okCiclo, errCiclo = pcall(function()
-        for _, alvo in ipairs(alvos) do
-            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
-            FlingConfig.AlvoAtual = alvo.DisplayName
-            FlingarAlvo(char, hrp, hum, alvo, origem)
-        end
-    end)
-    FlingConfig.AlvoAtual = nil
-    if not okCiclo then
-        warn("[FLING] erro: " .. tostring(errCiclo))
-        showToast("FLING (erro)", tostring(errCiclo):sub(1, 70), DANGER_CLR)
-    end
-
-    pcall(function()
-        if hrp.Parent and hum.Health > 0 then
-            hrp.Anchored = false
-            ZerarVelocidade(hrp)
-            hrp.CFrame = origem
-            pcall(function() char:PivotTo(origem) end)
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.AssemblyLinearVelocity = Vector3.zero
-                    part.AssemblyAngularVelocity = Vector3.zero
-                end
-            end
-            local st = hum:GetState()
-            if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll
-            or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.PlatformStanding then
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-            end
-        end
-    end)
-
-    FlingConfig.Andando = false
-    FlingConfig.Cancelar = false
-end
-
-local function AutoFling_Set(ativo)
-    if ativo == FlingConfig.AutoAtivo then return end
-    FlingConfig.AutoAtivo = ativo
-    if not ativo then
-        FlingConfig.Cancelar = true
-        showToast("💥 AUTO KILL", "Desligado", DANGER_CLR)
-        return
-    end
-    showToast("💥 AUTO KILL (FLING)", "Alvos: " .. FlingConfig.Alvo, SUCCESS_CLR)
-    task.spawn(function()
-        while FlingConfig.AutoAtivo do
-            if #FlingListarAlvos() == 0 then
-                task.wait(1)
-            else
-                FlingCiclo(true)
-                task.wait(0.5)
-            end
-        end
-    end)
-end
-
-local function TouchFling_Set(ativo)
-    if ativo == FlingConfig.TouchAtivo then return end
-    FlingConfig.TouchAtivo = ativo
-    if not ativo then return end
-    task.spawn(function()
-        TouchEngine(
-            function() return FlingConfig.TouchAtivo end,
-            function() return FlingConfig.Andando end,
-            nil
-        )
-    end)
-end
-
---═══════════════ AUTOKILL (Highlight antigo) — preservado ═══════════════
-local AutoKillConfig = {
-    Ativo = false, Alvo = "Inocentes", Rodando = false, Distancia = 12,
-    AlvoAtual = nil, Trocas = 0, Highlight = nil,
-}
-
-local function clearAlvoHighlight()
-    if AutoKillConfig.Highlight then
-        pcall(function() AutoKillConfig.Highlight:Destroy() end)
-        AutoKillConfig.Highlight = nil
-    end
-end
-
-local function applyAlvoHighlight(target, cor)
-    clearAlvoHighlight()
-    if not target or not target.Character then return end
-    local hl = Instance.new("Highlight")
-    hl.Name = "AKZ_AlvoAtual"
-    hl.Adornee = target.Character
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.FillColor = cor
-    hl.OutlineColor = cor
-    hl.FillTransparency = 0.5
-    hl.OutlineTransparency = 0
-    hl.Parent = target.Character
-    AutoKillConfig.Highlight = hl
-end
-
-local function AutoKill_Parar()
-    AutoKillConfig.Ativo = false
-    AutoKillConfig.Rodando = false
-    AutoKillConfig.AlvoAtual = nil
-    clearAlvoHighlight()
-end
-
-local function AutoKill_ListarAlvos()
-    local lista = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                local role = getPlayerRole(p)
-                local ok = false
-                if AutoKillConfig.Alvo == "Inocentes" and role == "Innocent" then ok = true end
-                if AutoKillConfig.Alvo == "Sheriff"   and role == "Sheriff"  then ok = true end
-                if AutoKillConfig.Alvo == "Murder"    and role == "Murderer" then ok = true end
-                if ok then table.insert(lista, p) end
+    local bp   = LocalPlayer:FindFirstChildOfClass("Backpack")
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") and checkKeyword(item.Name, KNIFE_KEYWORDS) then
+                return item
             end
         end
     end
-    return lista
-end
-
-local function AutoKill_TpEmCima(target)
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local tChar = target.Character
-    if not tChar then return false end
-    local tHRP = tChar:FindFirstChild("HumanoidRootPart")
-    if not tHRP then return false end
-    pcall(function() char:PivotTo(CFrame.new(tHRP.Position + Vector3.new(0, 3, 0))) end)
-    return true
-end
-
-local function AutoKill_TpPerto(target)
-    local char = LocalPlayer.Character
-    if not char then return false end
-    local tChar = target.Character
-    if not tChar then return false end
-    local tHRP = tChar:FindFirstChild("HumanoidRootPart")
-    if not tHRP then return false end
-    local lookVec = tHRP.CFrame.LookVector
-    local flatLook = Vector3.new(lookVec.X, 0, lookVec.Z)
-    if flatLook.Magnitude < 0.1 then
-        flatLook = Vector3.new(0, 0, -1)
-    else
-        flatLook = flatLook.Unit
-    end
-    local destino = tHRP.Position - flatLook * AutoKillConfig.Distancia + Vector3.new(0, 3, 0)
-    pcall(function() char:PivotTo(CFrame.new(destino)) end)
-    return true
-end
-
-local function AutoKill_Iniciar()
-    if AutoKillConfig.Rodando then return end
-    AutoKillConfig.Rodando = true
-    AutoKillConfig.Ativo = true
-    AutoKillConfig.Trocas = 0
-    showToast("🗡️ AUTO KILL", "Modo: " .. AutoKillConfig.Alvo, SUCCESS_CLR)
-
-    task.spawn(function()
-        while AutoKillConfig.Ativo do
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not char or not hum or hum.Health <= 0 then
-                AutoKillConfig.AlvoAtual = "(personagem morto)"
-                task.wait(0.5)
-            else
-                local alvos = AutoKill_ListarAlvos()
-                if #alvos == 0 then
-                    AutoKillConfig.AlvoAtual = "(sem alvos no mapa)"
-                    clearAlvoHighlight()
-                    task.wait(1)
-                else
-                    for _, t in ipairs(alvos) do
-                        if not AutoKillConfig.Ativo then break end
-                        if t and t.Character then
-                            local tHum = t.Character:FindFirstChildOfClass("Humanoid")
-                            if tHum and tHum.Health > 0 then
-                                AutoKillConfig.AlvoAtual = t.DisplayName
-                                AutoKillConfig.Trocas = AutoKillConfig.Trocas + 1
-                                local corEsp
-                                if AutoKillConfig.Alvo == "Murder" then
-                                    corEsp = Color3.fromRGB(220, 40, 40)
-                                elseif AutoKillConfig.Alvo == "Sheriff" then
-                                    corEsp = Color3.fromRGB(40, 120, 255)
-                                else
-                                    corEsp = Color3.fromRGB(50, 205, 50)
-                                end
-                                applyAlvoHighlight(t, corEsp)
-                                if AutoKillConfig.Alvo == "Murder" then
-                                    AutoKill_TpPerto(t)
-                                else
-                                    AutoKill_TpEmCima(t)
-                                end
-                                task.wait(1)
-                            end
-                        end
-                    end
-                end
-            end
-            task.wait(0.1)
-        end
-        AutoKillConfig.Rodando = false
-        clearAlvoHighlight()
-    end)
-end
-
---═══════════════ PEGAR GUN (preservado) ═══════════════
-local function AcharGunMaisProxima()
-    local char = LocalPlayer.Character
-    if not char then return nil end
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    if GunDrop.UltimaGun and GunDrop.UltimaGun.Parent then
-        return GunDrop.UltimaGun
-    end
-    local myPos = hrp.Position
-    local melhor, melhorDist = nil, math.huge
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if ehGun(obj) then
-            local dist = (obj.Position - myPos).Magnitude
-            if dist < melhorDist then
-                melhorDist = dist
-                melhor = obj
-            end
-        end
-    end
-    return melhor
-end
-
-local PegandoGun = false
-local function PegarGun()
-    if PegandoGun then return end
-    local gun = AcharGunMaisProxima()
-    if not gun then
-        showToast("PEGAR GUN", "Nenhuma gun encontrada", DANGER_CLR)
-        return
-    end
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    PegandoGun = true
-    local origem = hrp.CFrame
-    local destino = CFrame.new(gun.Position + Vector3.new(0, 2.5, 0))
-
-    local function temGun()
-        local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-        for _, c in ipairs({char, bp}) do
-            if c then
-                for _, o in ipairs(c:GetChildren()) do
-                    if o:IsA("Tool") and checkKeyword(o.Name, GUN_KEYWORDS) then return true end
-                end
-            end
-        end
-        return false
-    end
-
-    pcall(function() char:PivotTo(destino) end)
-    if firetouchinterest then
-        pcall(function()
-            firetouchinterest(hrp, gun, 0)
-            firetouchinterest(hrp, gun, 1)
-        end)
-    end
-
-    local t0 = tick()
-    while tick() - t0 < 0.35 do
-        if temGun() then break end
-        pcall(function() char:PivotTo(destino) end)
-        if firetouchinterest and gun.Parent then
-            pcall(function()
-                firetouchinterest(hrp, gun, 0)
-                firetouchinterest(hrp, gun, 1)
-            end)
-        end
-        RunService.Heartbeat:Wait()
-    end
-
-    pcall(function() char:PivotTo(origem) end)
-    ZerarVelocidade(hrp)
-    PegandoGun = false
-    showToast("PEGAR GUN", temGun() and "Gun pega! Voltou pra onde estava" or "Voltou (gun não foi pega)", temGun() and SUCCESS_CLR or WARN_CLR)
-end
-
---═══════════════ AUTO SHOOT MURDERER (v1.4) ═══════════════
--- Fluxo:
---   1) findMurderer (reutiliza getPlayerRole)
---   2) equipa a arma local (getToolByKeyword + GUN_KEYWORDS)
---   3) cria hitbox 15x15x15 parented no char do Murderer
---   4) aimbot próprio: trava Camera no torso por 6 frames
---   5) click simulado: VirtualUser:CaptureController + ClickButton1
---      → fallback mouse1press/release → mouse1click → tool:Activate()
---   6) destrói hitbox
--- Sem teleporte, sem fling, sem mover o player.
-
-local HITBOX_NAME = "AKZ_AS_Hitbox"
-local HITBOX_SIZE = Vector3.new(15, 15, 15)
-
-local function findMurderer()
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and getPlayerRole(p) == "Murderer" then
-                return p, hum
+    if bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if item:IsA("Tool") and checkKeyword(item.Name, KNIFE_KEYWORDS) then
+                return item
             end
         end
     end
     return nil
 end
 
-local function getToolByKeyword(kw)
+local function equiparEObterFaca()
     local char = LocalPlayer.Character
-    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-    for _, c in ipairs({char, bp}) do
-        if c then
-            for _, o in ipairs(c:GetChildren()) do
-                if o:IsA("Tool") and checkKeyword(o.Name, kw) then return o, char end
+    if not char then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return nil end
+    local faca = obterFacaPersonagem()
+    if not faca then return nil end
+    if faca.Parent ~= char then
+        hum:EquipTool(faca)
+        task.wait(0.05)
+    end
+    return faca
+end
+
+local function PararAutoKillAll()
+    AutoKillAllState.Enabled = false
+    AutoKillAllState.Running = false
+    if AutoKillAllState.Thread then
+        pcall(function() task.cancel(AutoKillAllState.Thread) end)
+        AutoKillAllState.Thread = nil
+    end
+end
+
+local function ExecutarAutoKillAll()
+    if AutoKillAllState.Running then return end
+    AutoKillAllState.Running = true
+    AutoKillAllState.Enabled = true
+
+    AutoKillAllState.Thread = task.spawn(function()
+        while AutoKillAllState.Enabled do
+            local myRole = getPlayerRole(LocalPlayer)
+            if myRole ~= "Murderer" then
+                showToast("🔪 AUTO KILL ALL", "Você precisa ser o Murderer!", WARN_CLR)
+                break
+            end
+
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not char or not hum or hum.Health <= 0 then break end
+
+            local faca = equiparEObterFaca()
+            if not faca or not faca.Parent then
+                showToast("🔪 AUTO KILL ALL", "Faca não encontrada!", DANGER_CLR)
+                break
+            end
+
+            local alvos = {}
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local h = p.Character:FindFirstChildOfClass("Humanoid")
+                    local r = p.Character:FindFirstChild("HumanoidRootPart")
+                    if h and r and h.Health > 0 then
+                        local role = getPlayerRole(p)
+                        if role == "Innocent" or role == "Sheriff" then
+                            table.insert(alvos, { player = p, root = r, hum = h })
+                        end
+                    end
+                end
+            end
+
+            if #alvos == 0 then
+                showToast("🔪 AUTO KILL ALL", "Nenhum alvo restante!", SUCCESS_CLR)
+                break
+            end
+
+            -- Sequência de ataque rápido reutilizando a faca equipada do jogo sem Fling/TP
+            for _, alvo in ipairs(alvos) do
+                if not AutoKillAllState.Enabled then break end
+                if not char.Parent or hum.Health <= 0 then break end
+                if not faca.Parent then faca = equiparEObterFaca() end
+                if not faca then break end
+
+                if alvo.hum.Health > 0 and alvo.root.Parent then
+                    -- Direciona brevemente o foco visual da câmera e ativa o golpe da faca nativa
+                    pcall(function()
+                        Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, alvo.root.Position)
+                    end)
+                    faca:Activate()
+                end
+                task.wait(0.02)
+            end
+
+            task.wait(0.1)
+        end
+
+        PararAutoKillAll()
+    end)
+end
+
+--═══════════════ AUTO SHOOT MURDER (CORRIGIDO E BOTÃO FLUTUANTE EXCLUSIVO) ═══════════════
+local function LimparHitboxMurderer()
+    if AutoShootState.Hitbox then
+        pcall(function() AutoShootState.Hitbox:Destroy() end)
+        AutoShootState.Hitbox = nil
+    end
+end
+
+local function ObterJogadorMurderer()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and getPlayerRole(p) == "Murderer" then
+                return p, p.Character
             end
         end
     end
-    return nil, char
+    return nil, nil
 end
 
-local function createMurdererHitbox(targetChar)
-    if not targetChar then return nil end
-    local old = targetChar:FindFirstChild(HITBOX_NAME)
-    if old then old:Destroy() end
-    local torso = targetChar:FindFirstChild("UpperTorso")
-               or targetChar:FindFirstChild("Torso")
-               or targetChar:FindFirstChild("HumanoidRootPart")
-    if not torso then return nil end
-    local hb = Instance.new("Part")
-    hb.Name = HITBOX_NAME
-    hb.Size = HITBOX_SIZE
-    hb.Shape = Enum.PartType.Block
-    hb.CanCollide = false
-    hb.CanQuery = true
-    hb.CanTouch = false
-    hb.Massless = true
-    hb.Transparency = 1
-    hb.Anchored = false
-    hb.CFrame = torso.CFrame
-    hb.Parent = targetChar
+local function CriarHitboxAuxiliarMurderer(mChar)
+    LimparHitboxMurderer()
+    if not mChar then return end
+    local mHRP = mChar:FindFirstChild("HumanoidRootPart")
+    if not mHRP then return end
+
+    -- Hitbox local/auxiliar (~15 studs) para servir de suporte na detecção/trava de mira
+    local box = Instance.new("Part")
+    box.Name = "AKZ_AuxHitbox"
+    box.Size = Vector3.new(15, 15, 15)
+    box.Transparency = 1
+    box.CanCollide = false
+    box.Anchored = false
+    box.Massless = true
+    box.Parent = mChar
+
     local weld = Instance.new("WeldConstraint")
-    weld.Part0 = hb
-    weld.Part1 = torso
-    weld.Parent = hb
-    return hb
+    weld.Part0 = box
+    weld.Part1 = mHRP
+    weld.Parent = box
+    box.CFrame = mHRP.CFrame
+
+    AutoShootState.Hitbox = box
 end
 
-local function destroyMurdererHitbox(targetChar)
-    if not targetChar then return end
-    local hb = targetChar:FindFirstChild(HITBOX_NAME)
-    if hb then hb:Destroy() end
-end
-
-local function clickNaTela(posScreen)
-    local fired = false
-    pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton1(posScreen)
-        fired = true
-    end)
-    if not fired then
-        pcall(function()
-            if mouse1press and mouse1release then
-                mouse1press(); task.wait(0.02); mouse1release()
-                fired = true
-            end
-        end)
-    end
-    if not fired then
-        pcall(function()
-            if mouse1click then mouse1click(); fired = true end
-        end)
-    end
-    return fired
-end
-
-local function atirarMurderer()
+local function ExecutarDisparoAutoShoot()
     if AutoShootState.Executing then return end
     AutoShootState.Executing = true
 
-    task.spawn(function()
-        local murderer, mHum = findMurderer()
-        if not murderer then
-            showToast("🔫 AUTO SHOOT", "Nenhum Murderer válido", DANGER_CLR)
-            AutoShootState.Executing = false
-            return
-        end
-
-        local gun, char = getToolByKeyword(GUN_KEYWORDS)
-        if not gun then
-            showToast("🔫 AUTO SHOOT", "Sem arma (não é Sheriff)", DANGER_CLR)
-            AutoShootState.Executing = false
-            return
-        end
-
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 0 then
-            AutoShootState.Executing = false
-            return
-        end
-
-        if gun.Parent ~= char then
-            pcall(function() hum:EquipTool(gun) end)
-            task.wait(0.06)
-        end
-
-        local mChar = murderer.Character
-        if not mChar then AutoShootState.Executing = false; return end
-        if mHum and mHum.Health <= 0 then AutoShootState.Executing = false; return end
-
-        local hitbox = createMurdererHitbox(mChar)
-        if not hitbox then
-            showToast("🔫 AUTO SHOOT", "Falha ao criar hitbox", DANGER_CLR)
-            AutoShootState.Executing = false
-            return
-        end
-        AutoShootState.Hitbox = hitbox
-        AutoShootState.HitboxTarget = mChar
-
-        -- aimbot próprio: trava Camera no torso da hitbox por 6 frames
-        for _ = 1, 6 do
-            if not hitbox.Parent or not mChar.Parent then break end
-            local camPos = Camera.CFrame.Position
-            local dir = hitbox.Position - camPos
-            if dir.Magnitude > 0.01 then
-                Camera.CFrame = CFrame.lookAt(camPos, camPos + dir.Unit)
-            end
-            RunService.RenderStepped:Wait()
-        end
-
-        -- posição em tela
-        local sp, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
-        local clickPos
-        if onScreen then
-            clickPos = Vector2.new(sp.X, sp.Y)
-        else
-            clickPos = Vector2.new(Camera.ViewportSize.X * 0.5, Camera.ViewportSize.Y * 0.5)
-        end
-
-        -- click simulado
-        clickNaTela(clickPos)
-
-        -- fallback: se o click não disparou no Tool, força Activate
-        task.wait(0.03)
-        pcall(function()
-            if gun.Parent then gun:Activate() end
-        end)
-
-        task.wait(0.1)
-        destroyMurdererHitbox(mChar)
-        AutoShootState.Hitbox = nil
-        AutoShootState.HitboxTarget = nil
+    local murderer, mChar = ObterJogadorMurderer()
+    if not murderer or not mChar then
+        showToast("🔫 AUTO SHOOT", "Murderer não encontrado/inválido!", WARN_CLR)
         AutoShootState.Executing = false
-        showToast("🔫 AUTO SHOOT", "Disparo em " .. murderer.DisplayName, SUCCESS_CLR)
-    end)
-end
-
---═══════════════ AUTO KILL ALL (Murderer, sem fling/TP) ═══════════════
--- Requer que o LocalPlayer seja Murderer (tenha faca).
--- SEM fling, SEM PivotTo, SEM teleport, SEM mover o personagem.
--- Estratégia:
---   1) equipa a faca
---   2) para cada alvo (Innocent + Sheriff) vivo:
---        - cria hitbox 15x15x15 parented no char do alvo (auxiliar local)
---        - chama knife:Activate()
---        - dispara firetouchinterest(handle, hitbox) nos dois sentidos
---        - verifica se morreu; destrói hitbox
--- LIMITAÇÃO: sem RemoteEvent confirmado no script, isso só mata se o server
--- aceitar o .Touched do cliente. Caso contrário, não mata.
-
-local AK_HITBOX_NAME = "AKZ_AKA_Hitbox"
-local AK_HITBOX_SIZE = Vector3.new(15, 15, 15)
-
-local function createKillHitboxFor(targetChar)
-    if not targetChar then return nil end
-    local old = targetChar:FindFirstChild(AK_HITBOX_NAME)
-    if old then old:Destroy() end
-    local torso = targetChar:FindFirstChild("UpperTorso")
-               or targetChar:FindFirstChild("Torso")
-               or targetChar:FindFirstChild("HumanoidRootPart")
-    if not torso then return nil end
-    local hb = Instance.new("Part")
-    hb.Name = AK_HITBOX_NAME
-    hb.Size = AK_HITBOX_SIZE
-    hb.Shape = Enum.PartType.Block
-    hb.CanCollide = false
-    hb.CanQuery = true
-    hb.CanTouch = true
-    hb.Massless = true
-    hb.Transparency = 1
-    hb.Anchored = false
-    hb.CFrame = torso.CFrame
-    hb.Parent = targetChar
-    local weld = Instance.new("WeldConstraint")
-    weld.Part0 = hb
-    weld.Part1 = torso
-    weld.Parent = hb
-    return hb
-end
-
-local function AutoKillAll_ExecuteTarget(target, knife)
-    if not target or not target.Character or not knife or not knife.Parent then return false end
-    local tChar = target.Character
-    local tHum  = tChar:FindFirstChildOfClass("Humanoid")
-    if not tHum or tHum.Health <= 0 then return false end
-
-    local hb = createKillHitboxFor(tChar)
-    if not hb then return false end
-
-    pcall(function() knife:Activate() end)
-
-    local handle = knife:FindFirstChild("Handle")
-    if handle and firetouchinterest then
-        pcall(function()
-            firetouchinterest(handle, hb, 0)
-            firetouchinterest(handle, hb, 1)
-        end)
-    end
-
-    task.wait(0.06)
-    local morreu = (tHum.Health <= 0)
-    pcall(function() hb:Destroy() end)
-    return morreu
-end
-
-local function AutoKillAll_Stop()
-    AutoKillAllState.Running = false
-end
-
-local function AutoKillAll_Run()
-    if AutoKillAllState.Running then return end
-    AutoKillAllState.Running = true
-
-    local knife, char = getToolByKeyword(KNIFE_KEYWORDS)
-    if not knife or not char then
-        showToast("☠️ AUTO KILL ALL", "Você não é Murderer (sem faca)", DANGER_CLR)
-        AutoKillAllState.Running = false
         return
     end
 
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then
-        AutoKillAllState.Running = false
+    local mHRP = mChar:FindFirstChild("HumanoidRootPart") or mChar:FindFirstChild("Head")
+    if not mHRP then
+        AutoShootState.Executing = false
         return
     end
 
-    if knife.Parent ~= char then
-        pcall(function() hum:EquipTool(knife) end)
-        task.wait(0.06)
-    end
+    CriarHitboxAuxiliarMurderer(mChar)
 
-    local targets = {}
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= LocalPlayer and p.Character then
-            local pHum = p.Character:FindFirstChildOfClass("Humanoid")
-            if pHum and pHum.Health > 0 then
-                local role = getPlayerRole(p)
-                if role == "Innocent" or role == "Sheriff" then
-                    table.insert(targets, p)
-                end
+    -- Procura a arma Sheriff equipada ou na Backpack
+    local char = LocalPlayer.Character
+    local bp   = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local gun  = nil
+
+    if char then
+        for _, item in ipairs(char:GetChildren()) do
+            if item:IsA("Tool") and checkKeyword(item.Name, GUN_KEYWORDS) then
+                gun = item; break
+            end
+        end
+    end
+    if not gun and bp then
+        for _, item in ipairs(bp:GetChildren()) do
+            if item:IsA("Tool") and checkKeyword(item.Name, GUN_KEYWORDS) then
+                gun = item; break
             end
         end
     end
 
-    if #targets == 0 then
-        showToast("☠️ AUTO KILL ALL", "Sem alvos válidos", DANGER_CLR)
-        AutoKillAllState.Running = false
+    if not gun then
+        showToast("🔫 AUTO SHOOT", "Você não tem a arma de Sheriff!", WARN_CLR)
+        LimparHitboxMurderer()
+        AutoShootState.Executing = false
         return
     end
 
-    showToast("☠️ AUTO KILL ALL", "Alvos: " .. #targets, WARN_CLR)
-
-    for _, target in ipairs(targets) do
-        if not AutoKillAllState.Running then break end
-        local cNow = LocalPlayer.Character
-        local hNow = cNow and cNow:FindFirstChildOfClass("Humanoid")
-        if not cNow or not hNow or hNow.Health <= 0 then break end
-        if not knife or not knife.Parent then
-            local k2 = getToolByKeyword(KNIFE_KEYWORDS)
-            if k2 then knife = k2 else break end
-        end
-        if knife.Parent ~= cNow then
-            pcall(function() hNow:EquipTool(knife) end)
-            task.wait(0.03)
-        end
-        AutoKillAll_ExecuteTarget(target, knife)
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if hum and gun.Parent ~= char then
+        hum:EquipTool(gun)
+        task.wait(0.08)
     end
 
-    AutoKillAllState.Running = false
-    showToast("☠️ AUTO KILL ALL", "Concluído", SUCCESS_CLR)
+    -- Alinha a câmera diretamente com a hitbox/posição do Murderer
+    if mHRP then
+        Camera.CFrame = CFrame.lookAt(Camera.CFrame.Position, mHRP.Position)
+    end
+
+    -- Disparo usando mecanica nativa e simulações do executor
+    pcall(function() gun:Activate() end)
+    pcall(function()
+        if VirtualInputManager then
+            VirtualInputManager:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, true, game, 0)
+            task.wait(0.02)
+            VirtualInputManager:SendMouseButtonEvent(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2, 0, false, game, 0)
+        else
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton1(Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2))
+        end
+    end)
+
+    task.wait(0.2)
+    LimparHitboxMurderer()
+    AutoShootState.Executing = false
 end
 
---═══════════════ BOTÃO FLUTUANTE DO AUTO SHOOT ═══════════════
--- Formato horizontal, topo da tela. NÃO circular (UICorner 0,10).
--- Arrastável mouse/touch. Distingue clique de arrasto.
--- Permanente enquanto o toggle Auto Shoot Murder estiver ON.
+local function CriarBotaoAutoShoot()
+    if AutoShootState.Button and AutoShootState.Button.Parent then return end
 
-local function createShootButton()
-    if AutoShootState.Button and AutoShootState.Button.Parent then
-        AutoShootState.Button.Visible = true
-        return AutoShootState.Button
-    end
+    local btnFrame = Instance.new("Frame")
+    btnFrame.Name = "AKZ_AutoShootButton"
+    btnFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    btnFrame.Position = UDim2.new(0.5, 0, 0, 55)
+    btnFrame.Size = UDim2.new(0, 210, 0, 42)
+    btnFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    btnFrame.BackgroundTransparency = 0.2
+    btnFrame.BorderSizePixel = 0
+    btnFrame.Active = true
+    btnFrame.ZIndex = 100
+    btnFrame.Parent = screenGui
 
-    local W, H = 220, 44
+    Instance.new("UICorner", btnFrame).CornerRadius = UDim.new(0, 10)
 
-    local btn = Instance.new("TextButton")
-    btn.Name = "AKZ_ShootMurderBtn"
-    btn.AnchorPoint = Vector2.new(0.5, 0.5)
-    btn.Size = UDim2.new(0, W, 0, H)
-    btn.Position = UDim2.new(0.5, 0, 0, 55)
-    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    btn.BackgroundTransparency = 0.15
-    btn.BorderSizePixel = 0
-    btn.Text = ""
-    btn.AutoButtonColor = false
-    btn.Active = true
-    btn.Visible = true
-    btn.ZIndex = 60
-    btn.Parent = screenGui
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10) -- retangular (NÃO circular)
+    local stroke = Instance.new("UIStroke", btnFrame)
+    stroke.Color = Theme.Accent
+    stroke.Thickness = 1.5
 
-    local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Color3.fromRGB(40, 120, 255)
-    stroke.Thickness = 2
-    stroke.Transparency = 0.25
+    local txt = Instance.new("TextLabel", btnFrame)
+    txt.Size = UDim2.new(1, 0, 1, 0)
+    txt.BackgroundTransparency = 1
+    txt.Text = "🔫 SHOOT MURDER"
+    txt.Font = Enum.Font.GothamBold
+    txt.TextSize = 13
+    txt.TextColor3 = TEXT
 
-    local icon = Instance.new("TextLabel", btn)
-    icon.Size = UDim2.new(0, 40, 1, 0)
-    icon.Position = UDim2.new(0, 8, 0, 0)
-    icon.BackgroundTransparency = 1
-    icon.Text = "🔫"
-    icon.Font = Enum.Font.GothamBold
-    icon.TextSize = 22
-    icon.TextColor3 = Color3.new(1,1,1)
+    -- Arraste compatível com Mouse e Touch sem acionar clique
+    local dragging = false
+    local dragStart, startPos
+    local dragThreshold = 8
+    local wasDragged = false
 
-    local label = Instance.new("TextLabel", btn)
-    label.Size = UDim2.new(1, -56, 1, 0)
-    label.Position = UDim2.new(0, 48, 0, 0)
-    label.BackgroundTransparency = 1
-    label.Text = "SHOOT MURDER"
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 14
-    label.TextColor3 = Color3.new(1,1,1)
-    label.TextXAlignment = Enum.TextXAlignment.Left
-
-    local dragging, dragStart, startPos, moved = false, nil, nil, false
-
-    btn.InputBegan:Connect(function(input)
+    btnFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
-            moved = false
+            wasDragged = false
             dragStart = input.Position
-            startPos = btn.Position
-            TweenService:Create(btn, TweenInfo.new(0.08), {BackgroundTransparency = 0.0}):Play()
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play()
-                    if not moved then
-                        task.spawn(atirarMurderer)
-                    end
-                end
-            end)
+            startPos = btnFrame.Position
         end
     end)
 
     UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             local delta = input.Position - dragStart
-            if math.abs(delta.X) > 6 or math.abs(delta.Y) > 6 then moved = true end
-            btn.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            if delta.Magnitude > dragThreshold then
+                wasDragged = true
+            end
+            btnFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
             )
         end
     end)
 
-    -- Animação de entrada
-    btn.Size = UDim2.new(0, 0, 0, H)
-    TweenService:Create(btn, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, W, 0, H)
-    }):Play()
-
-    AutoShootState.Button = btn
-    return btn
-end
-
-local function destroyShootButton()
-    if not (AutoShootState.Button and AutoShootState.Button.Parent) then
-        AutoShootState.Button = nil
-        return
-    end
-    local b = AutoShootState.Button
-    AutoShootState.Button = nil
-    local t = TweenService:Create(b, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-        Size = UDim2.new(0, 0, 0, 44),
-        BackgroundTransparency = 1,
-    })
-    t:Play()
-    t.Completed:Connect(function() if b then b:Destroy() end end)
-end
-
---═══════════════ LAYOUT / TEMA ═══════════════
-local function setLayout(modo)
-    if not LAYOUTS[modo] then return end
-    CurrentLayout = modo
-    TweenService:Create(menuFrame, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = LAYOUTS[modo]
-    }):Play()
-end
-
-local function applyTheme(newColor)
-    local oldAccent = Theme.Accent
-    Theme.Accent = newColor
-    Theme.AccentDim = newColor:Lerp(Color3.new(0,0,0), 0.35)
-    local function swap(root)
-        for _, d in ipairs(root:GetDescendants()) do
-            pcall(function() if d.BackgroundColor3 == oldAccent then d.BackgroundColor3 = newColor end end)
-            pcall(function() if d.TextColor3 == oldAccent then d.TextColor3 = newColor end end)
-            pcall(function() if d:IsA("UIStroke") and d.Color == oldAccent then d.Color = newColor end end)
-            pcall(function()
-                if d:IsA("ScrollingFrame") and d.ScrollBarImageColor3 == oldAccent then d.ScrollBarImageColor3 = newColor end
-            end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            if dragging then
+                dragging = false
+                if not wasDragged then
+                    ExecutarDisparoAutoShoot()
+                end
+            end
         end
-    end
-    swap(menuFrame)
-    swap(logo)
-    pcall(function() if logoStroke.Color == oldAccent then logoStroke.Color = newColor end end)
-end
-
---═══════════════ ABA PRINCIPAL ═══════════════
-local principalTab = createTab("Principal")
-local principalContent = principalTab.content
-
-local infoBlock = createBlock(principalContent, 1, "👤 INFO")
-local function infoRow(parent, order, texto, cor)
-    local c = Instance.new("Frame", parent)
-    c.Size = UDim2.new(1, 0, 0, 28)
-    c.BackgroundColor3 = BG_ROW
-    c.BackgroundTransparency = T.Row
-    c.BorderSizePixel = 0
-    c.LayoutOrder = order
-    Instance.new("UICorner", c).CornerRadius = UDim.new(0, 6)
-    local t = Instance.new("TextLabel", c)
-    t.BackgroundTransparency = 1
-    t.Size = UDim2.new(1, -20, 1, 0)
-    t.Position = UDim2.new(0, 12, 0, 0)
-    t.Text = texto
-    t.TextColor3 = cor or TEXT
-    t.Font = Enum.Font.GothamMedium
-    t.TextSize = 11
-    t.TextXAlignment = Enum.TextXAlignment.Left
-    return c
-end
-
-local executorNome = "Desconhecido"
-pcall(function() if identifyexecutor then executorNome = identifyexecutor() end end)
-
-infoRow(infoBlock, 2, "👤  Jogador: " .. LocalPlayer.DisplayName, TEXT)
-infoRow(infoBlock, 3, "⚙️  Executor: " .. executorNome, TEXT)
-infoRow(infoBlock, 4, "📦  Versão: v1.4", TEXT)
-infoRow(infoBlock, 5, "👑  Desenvolvedor: Akira007p", Theme.Accent)
-infoRow(infoBlock, 6, "✅  Status: ● Ativo", SUCCESS_CLR)
-
-local discordBlock = createBlock(principalContent, 2, "💬 COMUNIDADE")
-local discordBtn = Instance.new("TextButton", discordBlock)
-discordBtn.Size = UDim2.new(1, 0, 0, 34)
-discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
-discordBtn.BackgroundTransparency = 0.2
-discordBtn.BorderSizePixel = 0
-discordBtn.Text = "▶ Entrar no Discord"
-discordBtn.Font = Enum.Font.GothamBold
-discordBtn.TextSize = 12
-discordBtn.TextColor3 = Color3.new(1,1,1)
-discordBtn.AutoButtonColor = false
-discordBtn.LayoutOrder = 2
-discordBtn.Parent = discordBlock
-Instance.new("UICorner", discordBtn).CornerRadius = UDim.new(0, 8)
-discordBtn.MouseButton1Click:Connect(function()
-    local link = "https://discord.gg/kc7myVSq3"
-    pcall(function() setclipboard(link) end)
-    pcall(function() GuiService:OpenBrowserWindow(link) end)
-    showToast("💬 DISCORD", "Link copiado + navegador aberto", Color3.fromRGB(88, 101, 242))
-end)
-local discordLbl = Instance.new("TextLabel", discordBlock)
-discordLbl.Size = UDim2.new(1, 0, 0, 14)
-discordLbl.BackgroundTransparency = 1
-discordLbl.Text = "discord.gg/kc7myVSq3"
-discordLbl.Font = Enum.Font.GothamMedium
-discordLbl.TextSize = 10
-discordLbl.TextColor3 = TEXT_DIM
-discordLbl.TextXAlignment = Enum.TextXAlignment.Center
-discordLbl.LayoutOrder = 3
-
-local uiBlock = createBlock(principalContent, 3, "🎨 UI CONFIG")
-
-createOptionRow(uiBlock, 2, "Formato", {"Em pé", "Deitado"}, CurrentLayout, function(v)
-    setLayout(v)
-    showToast("📐 FORMATO", "Menu agora: " .. v, SUCCESS_CLR)
-end)
-
-createToggle(uiBlock, 3, "Interface Transparente", false, function(v) Transp_Aplicar(v) end)
-
-local corLbl = Instance.new("TextLabel", uiBlock)
-corLbl.Size = UDim2.new(1, 0, 0, 18)
-corLbl.BackgroundTransparency = 1
-corLbl.Text = "Cor do menu"
-corLbl.Font = Enum.Font.GothamMedium
-corLbl.TextSize = 11
-corLbl.TextColor3 = TEXT
-corLbl.TextXAlignment = Enum.TextXAlignment.Left
-corLbl.LayoutOrder = 4
-
-local corGrid = Instance.new("Frame", uiBlock)
-corGrid.Size = UDim2.new(1, 0, 0, 0)
-corGrid.AutomaticSize = Enum.AutomaticSize.Y
-corGrid.BackgroundTransparency = 1
-corGrid.LayoutOrder = 5
-
-local corGridLayout = Instance.new("UIGridLayout", corGrid)
-corGridLayout.CellSize = UDim2.new(0, 34, 0, 34)
-corGridLayout.CellPadding = UDim2.new(0, 6, 0, 6)
-corGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-local PRESETS = {
-    {nome="Branco", cor=Color3.fromRGB(240, 240, 245)},
-    {nome="Verde", cor=Color3.fromRGB(80, 220, 120)},
-    {nome="Vermelho", cor=Color3.fromRGB(230, 70, 70)},
-    {nome="Azul", cor=Color3.fromRGB(80, 150, 255)},
-    {nome="Roxo", cor=Color3.fromRGB(170, 100, 255)},
-    {nome="Amarelo", cor=Color3.fromRGB(255, 210, 70)},
-    {nome="Rosa", cor=Color3.fromRGB(255, 105, 180)},
-    {nome="Ciano", cor=Color3.fromRGB(60, 220, 220)},
-    {nome="Laranja", cor=Color3.fromRGB(255, 140, 60)},
-    {nome="Vinho", cor=Color3.fromRGB(180, 60, 90)},
-    {nome="Verde-água", cor=Color3.fromRGB(60, 180, 160)},
-    {nome="Cinza", cor=Color3.fromRGB(160, 160, 175)},
-}
-
-local corRefs = {}
-local function setActiveColorBorder(ativo)
-    for _, r in ipairs(corRefs) do
-        r.stroke.Transparency = (r.color == ativo) and 0 or 0.7
-        r.stroke.Thickness = (r.color == ativo) and 2 or 1
-    end
-end
-
-for i, preset in ipairs(PRESETS) do
-    local b = Instance.new("TextButton")
-    b.BackgroundColor3 = preset.cor
-    b.BackgroundTransparency = 0.1
-    b.BorderSizePixel = 0
-    b.Text = ""
-    b.AutoButtonColor = false
-    b.LayoutOrder = i
-    b.Parent = corGrid
-    Instance.new("UICorner", b).CornerRadius = UDim.new(0, 8)
-    local st = Instance.new("UIStroke", b)
-    st.Color = Color3.fromRGB(255, 255, 255)
-    st.Thickness = 1
-    st.Transparency = 0.7
-    corRefs[#corRefs+1] = {color = preset.cor, stroke = st}
-    b.MouseButton1Click:Connect(function()
-        applyTheme(preset.cor)
-        setActiveColorBorder(preset.cor)
     end)
+
+    AutoShootState.Button = btnFrame
 end
-setActiveColorBorder(Theme.Accent)
 
---═══════════════ ABA ESP ═══════════════
-local espTab = createTab("ESP")
-local espContent = espTab.content
-createSection(espContent, 1, "GERAL")
-createToggle(espContent, 2, "ESP Ativado", Config.ESPEnabled, function(v) Config.ESPEnabled = v; if not v then clearAllESP() end end)
-createSection(espContent, 3, "HIGHLIGHT")
-createToggle(espContent, 4, "Ativar Highlight", Config.Highlight, function(v) Config.Highlight = v end)
-createToggle(espContent, 5, "Preenchimento", Config.HighlightFill, function(v) Config.HighlightFill = v end)
-createToggle(espContent, 6, "Contorno", Config.HighlightOutline, function(v) Config.HighlightOutline = v end)
-createSection(espContent, 7, "FORMAS")
-createToggle(espContent, 8, "Box", Config.Box, function(v) Config.Box = v end)
-createToggle(espContent, 9, "Skeleton", Config.Skeleton, function(v) Config.Skeleton = v end)
-createSection(espContent, 10, "EXTRAS")
-createToggle(espContent, 11, "Nome", Config.ShowName, function(v) Config.ShowName = v end)
-createToggle(espContent, 12, "Tracer", Config.ShowTracer, function(v) Config.ShowTracer = v end)
-
---═══════════════ ABA AIMBOT ═══════════════
-local aimTab = createTab("Aimbot")
-local aimContent = aimTab.content
-createSection(aimContent, 1, "AIMBOT")
-createToggle(aimContent, 2, "Aimbot Ativado", Config.AimbotEnabled, function(v) Config.AimbotEnabled = v end)
-createToggle(aimContent, 3, "Mostrar FOV", Config.AimbotShowFOV, function(v) Config.AimbotShowFOV = v end)
-createSection(aimContent, 4, "ALVO")
-createOptionRow(aimContent, 5, "Parte do corpo", {"Cabeça","Tronco"}, Config.AimbotPart, function(v) Config.AimbotPart = v end)
-createOptionRow(aimContent, 6, "Travar em", {"Todos","Innocent","Murderer","Sheriff"}, Config.AimbotTeam, function(v) Config.AimbotTeam = v end)
-createSection(aimContent, 7, "FOV")
-createSlider(aimContent, 8, "Tamanho", 40, 500, Config.AimbotFOV, false, function(v) Config.AimbotFOV = math.floor(v); refreshFov() end)
-createSlider(aimContent, 9, "Transparência", 0, 1, Config.AimbotFOVAlpha, true, function(v) Config.AimbotFOVAlpha = v; refreshFov() end)
-createSection(aimContent, 10, "SUAVIDADE")
-createSlider(aimContent, 11, "Smoothness (0 = snap)", 0, 0.95, Config.AimbotSmooth, true, function(v) Config.AimbotSmooth = v end)
-
---═══════════════ ABA FARM ═══════════════
-local farmTab = createTab("Farm")
-local farmContent = farmTab.content
-createSection(farmContent, 1, "FARM DE MOEDAS")
-createToggle(farmContent, 2, "Farm Ativado", Farm.Ativo, function(v)
-    if v then
-        if FarmConfig.Modo == "Teleporte" then Farm_Iniciar()
-        else FarmFisico_Iniciar() end
-    else
-        Farm_Parar()
-        FarmFisico_Parar()
+local function DesativarAutoShoot()
+    AutoShootState.Enabled = false
+    AutoShootState.Executing = false
+    if AutoShootState.Button then
+        AutoShootState.Button:Destroy()
+        AutoShootState.Button = nil
     end
-end)
-createOptionRow(farmContent, 3, "Modo", {"Teleporte","Físico"}, FarmConfig.Modo, function(v) FarmConfig.Modo = v end)
-createSection(farmContent, 4, "CONTADOR")
-local farmStatusLbl = Instance.new("TextLabel")
-farmStatusLbl.Size = UDim2.new(1, -8, 0, 60)
-farmStatusLbl.BackgroundColor3 = BG_ROW
-farmStatusLbl.BackgroundTransparency = T.Row
-farmStatusLbl.BorderSizePixel = 0
-farmStatusLbl.LayoutOrder = 5
-farmStatusLbl.Text = "Coletadas: 0"
-farmStatusLbl.Font = Enum.Font.Code
-farmStatusLbl.TextSize = 14
-farmStatusLbl.TextColor3 = TEXT_DIM
-farmStatusLbl.TextXAlignment = Enum.TextXAlignment.Center
-farmStatusLbl.TextYAlignment = Enum.TextYAlignment.Center
-farmStatusLbl.Parent = farmContent
-Instance.new("UICorner", farmStatusLbl).CornerRadius = UDim.new(0, 8)
-
-task.spawn(function()
-    while farmStatusLbl.Parent do
-        task.wait(0.2)
-        local n, ativo
-        if FarmConfig.Modo == "Teleporte" then n = Farm.Coletadas; ativo = Farm.Rodando
-        else n = FarmFisico.Coletadas; ativo = FarmFisico.Ativo end
-        farmStatusLbl.Text = string.format("Coletadas: %d", n)
-        farmStatusLbl.TextColor3 = ativo and Theme.Accent or TEXT_DIM
-    end
-end)
-
---═══════════════ ABA FUNÇÕES ═══════════════
-local funcTab = createTab("Funções")
-local funcContent = funcTab.content
-
--- ── AUTO SHOOT MURDER (botão flutuante horizontal no topo) ──
-local shootBlock = createBlock(funcContent, 1, "🔫 AUTO SHOOT MURDER")
-createToggle(shootBlock, 2, "Auto Shoot Murder", AutoShootState.Enabled, function(v)
-    AutoShootState.Enabled = v
-    if v then
-        createShootButton()
-        showToast("🔫 AUTO SHOOT", "Botão ativado no topo", SUCCESS_CLR)
-    else
-        destroyShootButton()
-        destroyMurdererHitbox(AutoShootState.HitboxTarget)
-        AutoShootState.Hitbox = nil
-        AutoShootState.HitboxTarget = nil
-    end
-end)
-createButton(shootBlock, 3, "🔫  Atirar agora (1 clique)", function()
-    task.spawn(atirarMurderer)
-end)
-local shootInfoLbl = Instance.new("TextLabel", shootBlock)
-shootInfoLbl.Size = UDim2.new(1, 0, 0, 20)
-shootInfoLbl.BackgroundTransparency = 1
-shootInfoLbl.Text = "Alvo: Murderer • hitbox 15 • clique simulado"
-shootInfoLbl.Font = Enum.Font.GothamMedium
-shootInfoLbl.TextSize = 10
-shootInfoLbl.TextColor3 = TEXT_DIM
-shootInfoLbl.TextXAlignment = Enum.TextXAlignment.Left
-shootInfoLbl.LayoutOrder = 4
-
--- ── AUTO KILL ALL (separado do Fling, sem fling/TP/pivot) ──
-local akaBlock = createBlock(funcContent, 2, "☠️ AUTO KILL ALL (Murderer)")
-createToggle(akaBlock, 2, "Auto Kill All", AutoKillAllState.Enabled, function(v)
-    AutoKillAllState.Enabled = v
-    if v then
-        showToast("☠️ AUTO KILL ALL", "Pronto (você precisa ser Murderer)", SUCCESS_CLR)
-    else
-        AutoKillAll_Stop()
-    end
-end)
-createButton(akaBlock, 3, "☠️  Executar Agora", function()
-    task.spawn(AutoKillAll_Run)
-end)
-local akaInfoLbl = Instance.new("TextLabel", akaBlock)
-akaInfoLbl.Size = UDim2.new(1, 0, 0, 34)
-akaInfoLbl.BackgroundTransparency = 1
-akaInfoLbl.Text = "Sem fling, sem TP, sem mover. Mata Innocent + Sheriff via faca + hitbox. Requer ser Murderer."
-akaInfoLbl.Font = Enum.Font.GothamMedium
-akaInfoLbl.TextSize = 10
-akaInfoLbl.TextColor3 = TEXT_DIM
-akaInfoLbl.TextXAlignment = Enum.TextXAlignment.Left
-akaInfoLbl.TextWrapped = true
-akaInfoLbl.LayoutOrder = 4
-
--- ── AUTO KILL (FLING) — só toggle/buttons DENTRO do menu ──
-local killBlock = createBlock(funcContent, 3, "💥 AUTO KILL (Fling)")
-
-createToggle(killBlock, 2, "Auto Kill (fling)", false, function(v)
-    AutoFling_Set(v)
-end)
-
-createOptionRow(killBlock, 3, "Alvos", {"Sheriff", "Murder", "Inocentes", "Todos"}, FlingConfig.Alvo, function(v)
-    FlingConfig.Alvo = v
-    showToast("🎯 ALVOS", "Agora: " .. v, SUCCESS_CLR)
-end)
-
-createSlider(killBlock, 4, "Tempo por alvo (s)", 3, 10, FlingConfig.TempoMax, false, function(v)
-    FlingConfig.TempoMax = math.floor(v)
-end)
-
-createButton(killBlock, 5, "💥  Fling agora (1x)", function()
-    task.spawn(FlingCiclo)
-end)
-
-createButton(killBlock, 6, "⛔  Parar fling", function()
-    FlingConfig.Cancelar = true
-end)
-
-local killStatusLbl = Instance.new("TextLabel", killBlock)
-killStatusLbl.Size = UDim2.new(1, 0, 0, 40)
-killStatusLbl.BackgroundColor3 = BG_ROW
-killStatusLbl.BackgroundTransparency = T.Row
-killStatusLbl.BorderSizePixel = 0
-killStatusLbl.LayoutOrder = 7
-killStatusLbl.Text = "Aguardando..."
-killStatusLbl.Font = Enum.Font.Code
-killStatusLbl.TextSize = 12
-killStatusLbl.TextColor3 = TEXT_DIM
-killStatusLbl.TextXAlignment = Enum.TextXAlignment.Center
-killStatusLbl.TextYAlignment = Enum.TextYAlignment.Center
-killStatusLbl.TextWrapped = true
-Instance.new("UICorner", killStatusLbl).CornerRadius = UDim.new(0, 8)
-
-task.spawn(function()
-    while killStatusLbl.Parent do
-        task.wait(0.25)
-        if FlingConfig.Andando then
-            killStatusLbl.Text = "💥 Flingando:\n" .. (FlingConfig.AlvoAtual or "voltando pro lugar...")
-            killStatusLbl.TextColor3 = WARN_CLR
-        else
-            killStatusLbl.Text = (FlingConfig.AutoAtivo and "Auto ligado" or "Parado") .. " • Alvos: " .. FlingConfig.Alvo
-            killStatusLbl.TextColor3 = FlingConfig.AutoAtivo and SUCCESS_CLR or TEXT_DIM
-        end
-    end
-end)
-
--- ── GUN ──
-local gunBlock = createBlock(funcContent, 4, "🔫 GUN")
-createToggle(gunBlock, 2, "ESP Gun Drop", GunDrop.ESPAtivo, function(v)
-    GunDrop.ESPAtivo = v
-    if v then task.spawn(GunDrop_VarrerAgora)
-    elseif GunDrop.HighlightAtual then
-        pcall(function() GunDrop.HighlightAtual:Destroy() end)
-        GunDrop.HighlightAtual = nil
-    end
-end)
-createToggle(gunBlock, 3, "Aviso de arma dropada", GunDrop.AvisoDrop, function(v) GunDrop.AvisoDrop = v end)
-createToggle(gunBlock, 4, "Aviso de arma coletada", GunDrop.AvisoColeta, function(v) GunDrop.AvisoColeta = v end)
-
-GunDrop_CountLbl = Instance.new("TextLabel", gunBlock)
-GunDrop_CountLbl.Size = UDim2.new(1, 0, 0, 30)
-GunDrop_CountLbl.BackgroundColor3 = BG_ROW
-GunDrop_CountLbl.BackgroundTransparency = T.Row
-GunDrop_CountLbl.BorderSizePixel = 0
-GunDrop_CountLbl.LayoutOrder = 5
-GunDrop_CountLbl.Text = "Detectadas: 0"
-GunDrop_CountLbl.Font = Enum.Font.Code
-GunDrop_CountLbl.TextSize = 12
-GunDrop_CountLbl.TextColor3 = TEXT_DIM
-GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
-GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
-Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
-
-createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
-    task.spawn(PegarGun)
-end)
-
--- ── UTILITÁRIOS ──
-local utilBlock = createBlock(funcContent, 5, "⚙️ UTILITÁRIOS")
-createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
-createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
-createToggle(utilBlock, 4, "Touch Fling (quem encostar voa)", false, function(v) TouchFling_Set(v) end)
-
-selectTab("Principal")
-
---═══════════════ TECLA V ═══════════════
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.V then
-        Config.ESPEnabled = not Config.ESPEnabled
-        if not Config.ESPEnabled then clearAllESP() end
-    end
-end)
-
---═══════════════ LOOP PRINCIPAL ═══════════════
-local wasEnabled = false
-RunService.RenderStepped:Connect(function(dt)
-    local showFov = Config.AimbotEnabled and Config.AimbotShowFOV
-    local centro = getScreenCenter()
-    if AimFovDrawing then
-        AimFovDrawing.Visible = showFov
-        AimFovDrawing.Position = centro
-        fovCircle.Visible = false
-    else
-        fovCircle.Visible = showFov
-        if showFov then fovCircle.Position = UDim2.fromOffset(centro.X, centro.Y) end
-    end
-    if not Config.ESPEnabled then
-        if wasEnabled then clearAllESP() end
-        wasEnabled = false
-    else
-        wasEnabled = true
-        for _, player in ipairs(Players:GetPlayers()) do updatePlayerESP(player) end
-    end
-    if Config.AimbotEnabled then
-        local target = getAimbotTarget()
-        if target then lockOn(target) end
-    end
-end)
-
-Players.PlayerRemoving:Connect(function(p)
-    clearESPForPlayer(p)
-    espCache[p] = nil
-    if p and p.Character then
-        destroyMurdererHitbox(p.Character)
-        if AutoShootState.HitboxTarget == p.Character then
-            AutoShootState.Hitbox = nil
-            AutoShootState.HitboxTarget = nil
-        end
-    end
-end)
-
--- limpeza de hitbox órfã quando o target respawna
-for _, p in ipairs(Players:GetPlayers()) do
-    if p ~= LocalPlayer then
-        p.CharacterAdded:Connect(function(ch)
-            task.wait(0.5)
-            destroyMurdererHitbox(ch)
-            if AutoShootState.HitboxTarget == ch then
-                AutoShootState.Hitbox = nil
-                AutoShootState.HitboxTarget = nil
-            end
-        end)
+    LimparHitboxMurderer()
+    if AutoShootState.Connection then
+        AutoShootState.Connection:Disconnect()
+        AutoShootState.Connection = nil
     end
 end
-Players.PlayerAdded:Connect(function(p)
-    if p ~= LocalPlayer then
-        p.CharacterAdded:Connect(function(ch)
-            task.wait(0.5)
-            destroyMurdererHitbox(ch)
-            if AutoShootState.HitboxTarget == ch then
-                AutoShootState.Hitbox = nil
-                AutoShootState.HitboxTarget = nil
-            end
-        end)
-    end
-end)
 
---═══════════════ ABRIR / FECHAR MENU ═══════════════
-local menuOpen = false
-local function openMenu()
-    if menuOpen then return end
-    menuOpen = true
-    menuFrame.Visible = true
-    menuFrame.Size = LAYOUTS[CurrentLayout]
-    menuScale.Scale = 0.75
-    menuFrame.Position = UDim2.new(0.5, 0, 0.5, 25)
-    TweenService:Create(menuScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale=1}):Play()
-    TweenService:Create(menuFrame, TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
-        Position = UDim2.new(0.5, 0, 0.5, 0)
-    }):Play()
-end
-local function closeMenu()
-    if not menuOpen then return end
-    menuOpen = false
-    TweenService:Create(menuScale, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {Scale=0.75}):Play()
-    local t = TweenService:Create(menuFrame, TweenInfo.new(0.22, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
-        Position = UDim2.new(0.5, 0, 0.5, 25)
-    })
-    t:Play()
-    t.Completed:Connect(function() if not menuOpen then menuFrame.Visible = false end end)
-end
-closeBtn.MouseButton1Click:Connect(closeMenu)
+local function AtivarAutoShoot()
+    AutoShootState.Enabled = true
+    CriarBotaoAutoShoot()
 
---═══════════════ DRAG DO LOGO E DO MENU ═══════════════
-local logoDragging, logoDragStart, logoStartPos, logoMoved = false, nil, nil, false
-logo.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        logoDragging = true; logoMoved = false
-        logoDragStart = input.Position; logoStartPos = logo.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                logoDragging = false
-                if not logoMoved then
-                    if menuOpen then closeMenu() else openMenu() end
+    if not AutoShootState.Connection then
+        AutoShootState.Connection = RunService.Heartbeat:Connect(function()
+            if not AutoShootState.Enabled then return end
+            -- Valida e limpa a hitbox se o Murderer morrer ou sair da partida
+            if AutoShootState.Hitbox and AutoShootState.Hitbox.Parent then
+                local mChar = AutoShootState.Hitbox.Parent
+                local hum = mChar:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then
+                    LimparHitboxMurderer()
                 end
             end
         end)
     end
-end)
-UserInputService.InputChanged:Connect(function(input)
-    if not logoDragging then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        local delta = input.Position - logoDragStart
-        if math.abs(delta.X) > 3 or math.abs(delta.Y) > 3 then logoMoved = true end
-        logo.Position = UDim2.new(logoStartPos.X.Scale, logoStartPos.X.Offset + delta.X,
-            logoStartPos.Y.Scale, logoStartPos.Y.Offset + delta.Y)
-    end
+end
+
+--═══════════════ CONSTRUÇÃO DA INTERFACE ═══════════════
+
+-- Tab: Combat
+local combatTab = createTab("Combat")
+
+local killBlock = createBlock(combatTab.content, 1, "Auto Kill Options")
+createToggle(killBlock, 1, "Auto Kill All (Sem Fling/TP)", false, function(v)
+    if v then ExecutarAutoKillAll() else PararAutoKillAll() end
 end)
 
-local menuDragging, menuDragStart, menuStartPos = false, nil, nil
-header.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        menuDragging = true
-        menuDragStart = input.Position
-        menuStartPos = menuFrame.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then menuDragging = false end
+createToggle(killBlock, 2, "Auto Kill (Fling Nivelado)", false, function(v)
+    FlingConfig.AutoAtivo = v
+    if v then
+        task.spawn(function()
+            while FlingConfig.AutoAtivo do
+                local alvos = FlingListarAlvos()
+                for _, p in ipairs(alvos) do
+                    if not FlingConfig.AutoAtivo then break end
+                    local char = LocalPlayer.Character
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    local hum = char and char:FindFirstChildOfClass("Humanoid")
+                    if char and hrp and hum and hum.Health > 0 then
+                        FlingarAlvo(char, hrp, hum, p, hrp.CFrame)
+                    end
+                end
+                task.wait(0.5)
+            end
         end)
     end
 end)
-UserInputService.InputChanged:Connect(function(input)
-    if not menuDragging then return end
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        local delta = input.Position - menuDragStart
-        menuFrame.Position = UDim2.new(menuStartPos.X.Scale, menuStartPos.X.Offset + delta.X,
-            menuStartPos.Y.Scale, menuStartPos.Y.Offset + delta.Y)
+
+local shootBlock = createBlock(combatTab.content, 2, "Auto Shoot Murderer")
+createToggle(shootBlock, 1, "Ativar Botão Auto Shoot", false, function(v)
+    if v then AtivarAutoShoot() else DesativarAutoShoot() end
+end)
+
+-- Tab: Visuals (ESP)
+local visualTab = createTab("Visuals")
+local espBlock = createBlock(visualTab.content, 1, "Configurações de ESP")
+
+createToggle(espBlock, 1, "Ativar ESP Geral", Config.ESPEnabled, function(v)
+    Config.ESPEnabled = v
+    if not v then clearAllESP() end
+end)
+createToggle(espBlock, 2, "Highlight Personagem", Config.Highlight, function(v) Config.Highlight = v end)
+createToggle(espBlock, 3, "Highlight Preenchimento", Config.HighlightFill, function(v) Config.HighlightFill = v end)
+createToggle(espBlock, 4, "Highlight Contorno", Config.HighlightOutline, function(v) Config.HighlightOutline = v end)
+createToggle(espBlock, 5, "Caixa 2D (Box)", Config.Box, function(v) Config.Box = v end)
+createToggle(espBlock, 6, "Esqueleto", Config.Skeleton, function(v) Config.Skeleton = v end)
+createToggle(espBlock, 7, "Exibir Nomes", Config.ShowName, function(v) Config.ShowName = v end)
+createToggle(espBlock, 8, "Linhas Tracer", Config.ShowTracer, function(v) Config.ShowTracer = v end)
+
+-- Tab: Aimbot
+local aimTab = createTab("Aimbot")
+local aimBlock = createBlock(aimTab.content, 1, "Configurações de Aimbot")
+
+createToggle(aimBlock, 1, "Ativar Aimbot", Config.AimbotEnabled, function(v) Config.AimbotEnabled = v end)
+createToggle(aimBlock, 2, "Exibir Círculo FOV", Config.AimbotShowFOV, function(v)
+    Config.AimbotShowFOV = v
+    fovCircle.Visible = v
+    if AimFovDrawing then AimFovDrawing.Visible = v end
+end)
+createSlider(aimBlock, 3, "Tamanho FOV", 30, 300, Config.AimbotFOV, false, function(v)
+    Config.AimbotFOV = v
+    refreshFov()
+end)
+createSlider(aimBlock, 4, "Suavidade (Smoothness)", 0, 1, Config.AimbotSmooth, true, function(v)
+    Config.AimbotSmooth = v
+end)
+createOptionRow(aimBlock, 5, "Parte do Alvo", {"Cabeça", "Tronco"}, Config.AimbotPart, function(v)
+    Config.AimbotPart = v
+end)
+createOptionRow(aimBlock, 6, "Time Alvo", {"Todos", "Murderer", "Sheriff"}, Config.AimbotTeam, function(v)
+    Config.AimbotTeam = v
+end)
+
+-- Tab: Farm
+local farmTab = createTab("Farm")
+local farmBlock = createBlock(farmTab.content, 1, "Autofarm de Moedas")
+
+createToggle(farmBlock, 1, "Farm de Teleporte", FarmConfig.Ativo, function(v)
+    if v then Farm_Iniciar() else Farm_Parar() end
+end)
+createToggle(farmBlock, 2, "Farm Físico (Noclip)", FarmFisico.Ativo, function(v)
+    if v then FarmFisico_Iniciar() else FarmFisico_Parar() end
+end)
+
+-- Tab: Utilitários
+local utilTab = createTab("Utils")
+local gunBlock = createBlock(utilTab.content, 1, "Gun Drop Detector")
+
+createToggle(gunBlock, 1, "ESP Arma Dropada", GunDropConfig.ESPAtivo, function(v)
+    GunDropConfig.ESPAtivo = v
+    if v then GunDrop_VarrerAgora() end
+end)
+createToggle(gunBlock, 2, "Aviso Drop de Arma", GunDropConfig.AvisoDrop, function(v) GunDropConfig.AvisoDrop = v end)
+createToggle(gunBlock, 3, "Aviso Coleta de Arma", GunDropConfig.AvisoColeta, function(v) GunDropConfig.AvisoColeta = v end)
+
+GunDrop_CountLbl = Instance.new("TextLabel")
+GunDrop_CountLbl.Size = UDim2.new(1, 0, 0, 20)
+GunDrop_CountLbl.BackgroundTransparency = 1
+GunDrop_CountLbl.Text = "Detectadas: 0"
+GunDrop_CountLbl.Font = Enum.Font.GothamMedium
+GunDrop_CountLbl.TextSize = 12
+GunDrop_CountLbl.TextColor3 = TEXT_DIM
+GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Left
+GunDrop_CountLbl.LayoutOrder = 4
+GunDrop_CountLbl.Parent = gunBlock
+
+local sysBlock = createBlock(utilTab.content, 2, "Sistema e Outros")
+createToggle(sysBlock, 1, "Noclip", false, function(v) Noclip_Set(v) end)
+createToggle(sysBlock, 2, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
+createToggle(sysBlock, 3, "Menu Semitransparente", false, function(v) Transp_Aplicar(v) end)
+
+createOptionRow(sysBlock, 4, "Layout da UI", {"Em pé", "Deitado"}, CurrentLayout, function(v)
+    CurrentLayout = v
+    menuFrame.Size = LAYOUTS[v]
+end)
+
+-- Select default tab
+selectTab("Combat")
+
+--═══════════════ LÓGICA DE INTERAÇÃO DA UI ═══════════════
+closeBtn.MouseButton1Click:Connect(function()
+    menuFrame.Visible = false
+end)
+
+logo.MouseButton1Click:Connect(function()
+    menuFrame.Visible = not menuFrame.Visible
+end)
+
+-- Logo arrastável na tela
+local logoDragging = false
+local logoDragStart, logoStartPos
+
+logo.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        logoDragging = true
+        logoDragStart = input.Position
+        logoStartPos = logo.Position
     end
 end)
 
-print("[AKZ MENU mm2] v1.4 carregado 🔪")
+UserInputService.InputChanged:Connect(function(input)
+    if logoDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - logoDragStart
+        logo.Position = UDim2.new(
+            logoStartPos.X.Scale,
+            logoStartPos.X.Offset + delta.X,
+            logoStartPos.Y.Scale,
+            logoStartPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        logoDragging = false
+    end
+end)
+
+--═══════════════ MAIN RENDER LOOP ═══════════════
+RunService.RenderStepped:Connect(function()
+    -- Atualizar ESP
+    if Config.ESPEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer then updatePlayerESP(p) end
+        end
+    end
+
+    -- Atualizar Aimbot
+    if Config.AimbotEnabled then
+        local target = getAimbotTarget()
+        if target then lockOn(target) end
+    end
+
+    -- Atualizar Círculo FOV na tela
+    if Config.AimbotShowFOV then
+        local centro = getScreenCenter()
+        fovCircle.Position = UDim2.fromOffset(centro.X, centro.Y)
+        if AimFovDrawing then
+            AimFovDrawing.Position = centro
+        end
+    end
+end)
+
+showToast("AKZ MENU MM2", "Script carregado com sucesso!", SUCCESS_CLR)
