@@ -1,12 +1,13 @@
 --[[
 ═══════════════════════════════════════════════════════════════
-   AKZ MENU mm2  —  v1.3
+   AKZ MENU mm2  —  v1.5
    • Fundo com imagem (rbxassetid://87903267067222)
    • UI semitransparente profissional
-   • Botões flutuantes (Auto Shoot Murderer / Auto Kill)
-   • Auto Kill (fling) preservado
-   • Auto Shoot Murderer via Tool:Activate + alinhamento de câmera
-   • Ações antigas preservadas (Farm, ESP, Aimbot, GunDrop, Noclip, Anti-AFK)
+   • Botão flutuante horizontal SOMENTE para Auto Shoot Murder
+   • Auto Shoot Murder: hitbox 15 + aimbot torso + click simulado
+   • Auto Kill All (Murderer): faca + hitbox, SEM fling/TP/pivot
+   • Auto Kill Fling preservado (sem botão flutuante externo)
+   • Farm, ESP, Aimbot, GunDrop, Noclip, Anti-AFK preservados
 ═══════════════════════════════════════════════════════════════
 --]]
 
@@ -49,7 +50,6 @@ local WARN_CLR    = Color3.fromRGB(255, 190, 60)
 local SUCCESS_CLR = Color3.fromRGB(120, 220, 140)
 local DANGER_CLR  = Color3.fromRGB(230, 90, 90)
 
--- Transparências profissionais (imagem fica visível por trás)
 local T = {
     Menu    = 0.28,
     Header  = 0.35,
@@ -118,6 +118,20 @@ local GunDropConfig = {
 }
 local espCache = {}
 
+-- ── ESTADOS NOVOS (separados do FlingConfig) ──
+local AutoShootState = {
+    Enabled = false,
+    Executing = false,
+    Button = nil,
+    Hitbox = nil,
+    HitboxTarget = nil,
+}
+
+local AutoKillAllState = {
+    Enabled = false,
+    Running = false,
+}
+
 local KNIFE_KEYWORDS = {"knife","faca","blade","lâmina","lamina","punhal","dagger"}
 local GUN_KEYWORDS   = {"gun","revolver","pistol","arma","pistola","luger","m9","firearm","handgun","sidearm"}
 
@@ -155,6 +169,23 @@ end
 local function getRoleColor(player)
     return ROLE_COLORS[getPlayerRole(player)] or ROLE_COLORS.Innocent
 end
+
+-- Helper genérico: pega a tool local que combine com um conjunto de keywords
+local function getLocalToolByKeywords(keywords)
+    local char = LocalPlayer.Character
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    for _, c in ipairs({char, bp}) do
+        if c then
+            for _, o in ipairs(c:GetChildren()) do
+                if o:IsA("Tool") and checkKeyword(o.Name, keywords) then return o, char end
+            end
+        end
+    end
+    return nil, char
+end
+
+local function getKnifeTool() return getLocalToolByKeywords(KNIFE_KEYWORDS) end
+local function getGunTool()   return getLocalToolByKeywords(GUN_KEYWORDS)   end
 
 --═══════════════ GUI ROOT ═══════════════
 local screenGui = Instance.new("ScreenGui")
@@ -281,7 +312,7 @@ local function refreshFov()
 end
 refreshFov()
 
---═══════════════ LOGO (arrastável) ═══════════════
+--═══════════════ LOGO ═══════════════
 local logo = Instance.new("TextButton")
 logo.AnchorPoint = Vector2.new(0.5, 0.5)
 logo.Size = UDim2.new(0, 58, 0, 58)
@@ -339,11 +370,9 @@ local menuStroke = Instance.new("UIStroke", menuFrame)
 menuStroke.Color = STROKE_CLR
 menuStroke.Thickness = 1
 
--- Imagem de fundo do menu (fica atrás de tudo)
 local bgImage = Instance.new("ImageLabel")
 bgImage.Name = "BackgroundImage"
 bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.Position = UDim2.new(0, 0, 0, 0)
 bgImage.BackgroundTransparency = 1
 bgImage.BorderSizePixel = 0
 bgImage.Image = BG_IMAGE_ASSET
@@ -352,7 +381,6 @@ bgImage.ImageTransparency = 0.15
 bgImage.ZIndex = 1
 bgImage.Parent = menuFrame
 
--- leve escurecimento para manter texto legível sobre a imagem
 local bgTint = Instance.new("Frame", menuFrame)
 bgTint.Size = UDim2.new(1, 0, 1, 0)
 bgTint.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -749,7 +777,6 @@ local function createButton(parent, order, label, onClick)
     st.Color = Theme.Accent
     st.Thickness = 1
     st.Transparency = 0.6
-
     btn.MouseButton1Click:Connect(function()
         TweenService:Create(st, TweenInfo.new(0.1), {Transparency = 0}):Play()
         task.delay(0.15, function()
@@ -760,7 +787,7 @@ local function createButton(parent, order, label, onClick)
     return btn
 end
 
---═══════════════ TRANSPARÊNCIA MANUAL ═══════════════
+--═══════════════ TRANSPARÊNCIA ═══════════════
 local function Transp_AplicarEm(obj)
     if not obj:IsA("GuiObject") then return end
     if obj:GetAttribute("AKZ_OrigBT") ~= nil then return end
@@ -1711,7 +1738,7 @@ local function GunDrop_VarrerAgora()
     end
 end
 
---═══════════════ AUTO KILL (FLING) — preservado ═══════════════
+--═══════════════ AUTO KILL (FLING) — preservado INTACTO ═══════════════
 local FlingConfig = {
     Alvo        = "Sheriff",
     TempoMax    = 6,
@@ -1998,7 +2025,7 @@ local function TouchFling_Set(ativo)
     end)
 end
 
---═══════════════ AUTOKILL (Highlight antigo) — preservado ═══════════════
+--═══════════════ AUTOKILL LEGADO (Highlight) ═══════════════
 local AutoKillConfig = {
     Ativo = false, Alvo = "Inocentes", Rodando = false, Distancia = 12,
     AlvoAtual = nil, Trocas = 0, Highlight = nil,
@@ -2109,7 +2136,6 @@ local function AutoKill_Iniciar()
                             if tHum and tHum.Health > 0 then
                                 AutoKillConfig.AlvoAtual = t.DisplayName
                                 AutoKillConfig.Trocas = AutoKillConfig.Trocas + 1
-
                                 local corEsp
                                 if AutoKillConfig.Alvo == "Murder" then
                                     corEsp = Color3.fromRGB(220, 40, 40)
@@ -2119,13 +2145,11 @@ local function AutoKill_Iniciar()
                                     corEsp = Color3.fromRGB(50, 205, 50)
                                 end
                                 applyAlvoHighlight(t, corEsp)
-
                                 if AutoKillConfig.Alvo == "Murder" then
                                     AutoKill_TpPerto(t)
                                 else
                                     AutoKill_TpEmCima(t)
                                 end
-
                                 task.wait(1)
                             end
                         end
@@ -2139,7 +2163,7 @@ local function AutoKill_Iniciar()
     end)
 end
 
---═══════════════ PEGAR GUN (preservado) ═══════════════
+--═══════════════ PEGAR GUN ═══════════════
 local function AcharGunMaisProxima()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -2217,14 +2241,18 @@ local function PegarGun()
     showToast("PEGAR GUN", temGun() and "Gun pega! Voltou pra onde estava" or "Voltou (gun não foi pega)", temGun() and SUCCESS_CLR or WARN_CLR)
 end
 
---═══════════════ AUTO SHOOT MURDERER (nova) ═══════════════
--- Reutiliza getPlayerRole + GUN_KEYWORDS. Não teleporta, não move, não fling.
--- Para disparar, faz Tool:Activate() após alinhar a câmera com o Murderer.
--- Se no seu ambiente existirem remotes reais do MM2 para o disparo, cole-os em tryFireToolRemote().
-local AutoShoot = { Ativo = false, Disparando = false, UltimoDisparo = 0 }
+--═══════════════ AUTO SHOOT MURDERER (v1.5) ═══════════════
+-- 1) Acha Murderer via getPlayerRole
+-- 2) Cria hitbox 15x15x15 no char do Murderer (parented nele p/ o server reconhecer)
+-- 3) Aimbot próprio: trava Camera no torso por 6 frames (RenderStepped)
+-- 4) CLICK SIMULADO: VirtualUser:CaptureController + ClickButton1
+--    fallback: mouse1click / mouse1press+release / tool:Activate()
+-- 5) Destrói hitbox
+-- Sem teleporte, sem fling, sem mover o player.
+local HITBOX_NAME = "AKZ_AS_Hitbox"
+local HITBOX_SIZE = Vector3.new(15, 15, 15)
 
 local function findMurderer()
-    local melhor, melhorHum
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             local hum = p.Character:FindFirstChildOfClass("Humanoid")
@@ -2236,49 +2264,101 @@ local function findMurderer()
     return nil
 end
 
-local function getToolByKeyword(kw)
-    local char = LocalPlayer.Character
-    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-    for _, c in ipairs({char, bp}) do
-        if c then
-            for _, o in ipairs(c:GetChildren()) do
-                if o:IsA("Tool") and checkKeyword(o.Name, kw) then return o, char end
-            end
-        end
-    end
-    return nil, char
+local function createMurdererHitbox(targetChar)
+    if not targetChar then return nil end
+    local old = targetChar:FindFirstChild(HITBOX_NAME)
+    if old then old:Destroy() end
+
+    local torso = targetChar:FindFirstChild("UpperTorso")
+               or targetChar:FindFirstChild("Torso")
+               or targetChar:FindFirstChild("HumanoidRootPart")
+    if not torso then return nil end
+
+    local hb = Instance.new("Part")
+    hb.Name       = HITBOX_NAME
+    hb.Size       = HITBOX_SIZE
+    hb.Shape      = Enum.PartType.Block
+    hb.CanCollide = false
+    hb.CanQuery   = true
+    hb.CanTouch   = false
+    hb.Massless   = true
+    hb.Transparency = 1
+    hb.Anchored   = false
+    hb.CFrame     = torso.CFrame
+    hb.Parent     = targetChar
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = hb
+    weld.Part1 = torso
+    weld.Parent = hb
+
+    return hb
 end
 
--- Gancho opcional: se você tiver remote de disparo, use aqui.
--- Ex.: local r = tool:FindFirstChildOfClass("RemoteEvent"); if r then r:FireServer(args) end
-local function tryFireToolRemote(tool, alvoPart)
-    -- Mantido intencionalmente vazio: o script não inventa remotes.
-    -- Se MM2 tiver remote confirmado, adicione aqui.
-    return false
+local function destroyMurdererHitbox(targetChar)
+    if not targetChar then return end
+    local hb = targetChar:FindFirstChild(HITBOX_NAME)
+    if hb then hb:Destroy() end
+end
+
+-- Executa o "clique" no ecrã. Retorna true se algum método foi acionado.
+local function clickNaTela(posScreen)
+    local fired = false
+
+    -- 1) VirtualUser:CaptureController + ClickButton1
+    pcall(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton1(posScreen)
+        fired = true
+    end)
+
+    -- 2) mouse1press + mouse1release
+    if not fired then
+        pcall(function()
+            if mouse1press and mouse1release then
+                mouse1press()
+                task.wait(0.02)
+                mouse1release()
+                fired = true
+            end
+        end)
+    end
+
+    -- 3) mouse1click
+    if not fired then
+        pcall(function()
+            if mouse1click then
+                mouse1click()
+                fired = true
+            end
+        end)
+    end
+
+    return fired
 end
 
 local function atirarMurderer()
-    if AutoShoot.Disparando then return end
-    AutoShoot.Disparando = true
+    if AutoShootState.Executing then return end
+    AutoShootState.Executing = true
 
     task.spawn(function()
-        local murderer, mHum = findMurderer()
-        if not murderer then
+        local murderer = findMurderer()
+        if not murderer or not murderer.Character then
             showToast("🔫 AUTO SHOOT", "Nenhum Murderer válido", DANGER_CLR)
-            AutoShoot.Disparando = false
+            AutoShootState.Executing = false
             return
         end
 
-        local gun, char = getToolByKeyword(GUN_KEYWORDS)
-        if not gun then
-            showToast("🔫 AUTO SHOOT", "Sem arma (não é Sheriff)", DANGER_CLR)
-            AutoShoot.Disparando = false
+        local gun, char = getGunTool()
+        if not gun or not char then
+            showToast("🔫 AUTO SHOOT", "Sem arma (você não é Sheriff)", DANGER_CLR)
+            AutoShootState.Executing = false
             return
         end
 
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hum = char:FindFirstChildOfClass("Humanoid")
         if not hum or hum.Health <= 0 then
-            AutoShoot.Disparando = false
+            AutoShootState.Executing = false
             return
         end
 
@@ -2287,185 +2367,235 @@ local function atirarMurderer()
             task.wait(0.06)
         end
 
-        local mChar = murderer.Character
-        if not mChar then AutoShoot.Disparando = false; return end
-        local mHead  = mChar:FindFirstChild("Head")
-                     or mChar:FindFirstChild("UpperTorso")
-                     or mChar:FindFirstChild("Torso")
-                     or mChar:FindFirstChild("HumanoidRootPart")
-        if not mHead or (mHum and mHum.Health <= 0) then
-            AutoShoot.Disparando = false
+        local hitbox = createMurdererHitbox(murderer.Character)
+        if not hitbox then
+            showToast("🔫 AUTO SHOOT", "Falha ao criar hitbox", DANGER_CLR)
+            AutoShootState.Executing = false
             return
         end
+        AutoShootState.Hitbox = hitbox
+        AutoShootState.HitboxTarget = murderer.Character
 
-        local camPos = Camera.CFrame.Position
-        local dir    = mHead.Position - camPos
-        if dir.Magnitude > 0.01 then
-            Camera.CFrame = CFrame.lookAt(camPos, camPos + dir.Unit)
+        -- Aimbot próprio: alinha câmera com o torso da hitbox por 6 frames
+        for _ = 1, 6 do
+            if not hitbox.Parent or not murderer.Character or not murderer.Character.Parent then break end
+            local camPos = Camera.CFrame.Position
+            local dir    = hitbox.Position - camPos
+            if dir.Magnitude > 0.01 then
+                Camera.CFrame = CFrame.lookAt(camPos, camPos + dir.Unit)
+            end
+            RunService.RenderStepped:Wait()
         end
 
-        -- Tenta remote (se um dia existir no script) e cai no Activate nativo.
-        if not tryFireToolRemote(gun, mHead) then
-            pcall(function() gun:Activate() end)
+        -- Posição em tela do hitbox
+        local sp, onScreen = Camera:WorldToViewportPoint(hitbox.Position)
+        local clickPos
+        if onScreen then
+            clickPos = Vector2.new(sp.X, sp.Y)
+        else
+            clickPos = Vector2.new(Camera.ViewportSize.X * 0.5, Camera.ViewportSize.Y * 0.5)
         end
 
-        task.wait(0.05)
-        AutoShoot.Disparando = false
+        -- CLIQUE SIMULADO
+        clickNaTela(clickPos)
+
+        -- Fallback adicional: se nenhum clique disparou no Tool, ativa direto
+        task.wait(0.03)
+        pcall(function()
+            if gun.Parent then gun:Activate() end
+        end)
+
+        task.wait(0.1)
+        destroyMurdererHitbox(murderer.Character)
+        AutoShootState.Hitbox = nil
+        AutoShootState.HitboxTarget = nil
+
+        AutoShootState.Executing = false
         showToast("🔫 AUTO SHOOT", "Disparo em " .. murderer.DisplayName, SUCCESS_CLR)
     end)
 end
 
---═══════════════ BOTÕES FLUTUANTES ═══════════════
--- Botão circular, arrastável por mouse/touch, distingue clique de arrasto,
--- com feedback visual e aparição/desaparição suave via TweenService.
-local floatingButtons = {}
-
-local function createFloatingButton(nome, icone, posicaoInicial, corBase)
-    local btn = Instance.new("TextButton")
-    btn.Name = "AKZ_Float_" .. nome
-    btn.AnchorPoint = Vector2.new(0, 0)
-    btn.Size = UDim2.new(0, 56, 0, 56)
-    btn.Position = posicaoInicial
-    btn.BackgroundColor3 = corBase
-    btn.BackgroundTransparency = 0.15
-    btn.BorderSizePixel = 0
-    btn.Text = icone
-    btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 22
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.AutoButtonColor = false
-    btn.Active = true
-    btn.Visible = false
-    btn.ZIndex = 50
-    btn.Parent = screenGui
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
-
-    local stroke = Instance.new("UIStroke", btn)
-    stroke.Color = Color3.new(1,1,1)
-    stroke.Thickness = 2
-    stroke.Transparency = 0.35
-
-    local shadow = Instance.new("Frame", btn)
-    shadow.Size = UDim2.new(1, 6, 1, 6)
-    shadow.Position = UDim2.new(0, -3, 0, -3)
-    shadow.BackgroundColor3 = Color3.new(0,0,0)
-    shadow.BackgroundTransparency = 0.7
-    shadow.BorderSizePixel = 0
-    shadow.ZIndex = -1
-
-    local dragging   = false
-    local dragStart, startPos
-    local moved      = false
-    local onClickFn  = nil
-
-    local function pressDown()
-        TweenService:Create(btn, TweenInfo.new(0.1), {
-            Size = UDim2.new(0, 50, 0, 50),
-            BackgroundTransparency = 0.0,
-        }):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.1), {Transparency = 0}):Play()
+-- Limpeza: hitbox órfã quando o alvo morre / sai / respawn
+local function AutoShoot_CleanupHitboxFor(targetChar)
+    if not targetChar then return end
+    local hb = targetChar:FindFirstChild(HITBOX_NAME)
+    if hb then hb:Destroy() end
+    if AutoShootState.HitboxTarget == targetChar then
+        AutoShootState.Hitbox = nil
+        AutoShootState.HitboxTarget = nil
     end
-
-    local function pressUp()
-        TweenService:Create(btn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(0, 56, 0, 56),
-            BackgroundTransparency = 0.15,
-        }):Play()
-        TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = 0.35}):Play()
-    end
-
-    btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging  = true
-            moved     = false
-            dragStart = input.Position
-            startPos  = btn.Position
-            pressDown()
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                    pressUp()
-                    if not moved and onClickFn then
-                        task.spawn(onClickFn)
-                    end
-                end
-            end)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch then
-            local delta = input.Position - dragStart
-            if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then moved = true end
-            btn.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-
-    local api = {
-        btn = btn,
-        stroke = stroke,
-        SetOnClick = function(fn) onClickFn = fn end,
-        Show = function()
-            if btn.Visible then return end
-            btn.Visible = true
-            btn.Size = UDim2.new(0, 40, 0, 40)
-            btn.BackgroundTransparency = 0.6
-            TweenService:Create(btn, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-                Size = UDim2.new(0, 56, 0, 56),
-                BackgroundTransparency = 0.15,
-            }):Play()
-        end,
-        Hide = function()
-            if not btn.Visible then return end
-            local t = TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-                Size = UDim2.new(0, 0, 0, 0),
-                BackgroundTransparency = 1,
-            })
-            t:Play()
-            t.Completed:Connect(function()
-                btn.Visible = false
-                btn.Size = UDim2.new(0, 56, 0, 56)
-                btn.BackgroundTransparency = 0.15
-            end)
-        end,
-        SetCor = function(c)
-            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = c}):Play()
-        end,
-    }
-    return api
 end
 
-local shootBtn = createFloatingButton(
-    "AutoShoot",
-    "🔫",
-    UDim2.new(0, 20, 0, 200),
-    Color3.fromRGB(40, 120, 255)
-)
-shootBtn.SetOnClick(function() atirarMurderer() end)
-
-local killBtn = createFloatingButton(
-    "AutoKill",
-    "☠️",
-    UDim2.new(0, 20, 0, 270),
-    Color3.fromRGB(200, 40, 40)
-)
-killBtn.SetOnClick(function()
-    -- Executa o ciclo de fling instantaneamente (auto kill rápido, sem teleport manual)
-    task.spawn(function()
-        FlingConfig.Andando = false
-        FlingCiclo(false)
-    end)
+for _, p in ipairs(Players:GetPlayers()) do
+    if p ~= LocalPlayer then
+        p.CharacterAdded:Connect(function(ch)
+            task.wait(0.5)
+            if AutoShootState.HitboxTarget == ch then
+                AutoShoot_CleanupHitboxFor(ch)
+            end
+        end)
+    end
+end
+Players.PlayerAdded:Connect(function(p)
+    if p ~= LocalPlayer then
+        p.CharacterAdded:Connect(function(ch)
+            task.wait(0.5)
+            if AutoShootState.HitboxTarget == ch then
+                AutoShoot_CleanupHitboxFor(ch)
+            end
+        end)
+    end
+end)
+Players.PlayerRemoving:Connect(function(p)
+    if p and p.Character then AutoShoot_CleanupHitboxFor(p.Character) end
 end)
 
--- Estado visual: ativo = cor cheia, inativo = cor mais escura
-local function setFloatingActive(api, ativo, corAtiva, corInativa)
-    api.SetCor(ativo and corAtiva or corInativa)
+--═══════════════ AUTO KILL ALL (Murderer) ═══════════════
+-- Requer que o LocalPlayer seja o Murderer (tenha faca).
+-- Estratégia (SEM fling/TP/pivot/mover):
+--   1) equipa a faca
+--   2) para cada alvo (Innocent + Sheriff) vivo:
+--        - cria uma hitbox 15x15x15 parented no char do alvo
+--        - chama knife:Activate()
+--        - dispara firetouchinterest(handle, hitbox) nos dois sentidos
+--        - verifica se morreu
+--        - destrói a hitbox
+-- IMPORTANTE: o MM2 atual valida o hit no SERVIDOR. O firetouchinterest só
+-- ajuda se o server aceitar o .Touched do cliente (versões antigas aceitam).
+-- Se não matar, é porque o server rejeita — sem um RemoteEvent real do
+-- script do jogo, não há como contornar de forma legítima.
+local AK_HITBOX_NAME = "AKZ_AKA_Hitbox"
+local AK_HITBOX_SIZE = Vector3.new(15, 15, 15)
+
+local function createKillHitboxFor(targetChar)
+    if not targetChar then return nil end
+    local old = targetChar:FindFirstChild(AK_HITBOX_NAME)
+    if old then old:Destroy() end
+
+    local torso = targetChar:FindFirstChild("UpperTorso")
+               or targetChar:FindFirstChild("Torso")
+               or targetChar:FindFirstChild("HumanoidRootPart")
+    if not torso then return nil end
+
+    local hb = Instance.new("Part")
+    hb.Name       = AK_HITBOX_NAME
+    hb.Size       = AK_HITBOX_SIZE
+    hb.Shape      = Enum.PartType.Block
+    hb.CanCollide = false
+    hb.CanQuery   = true
+    hb.CanTouch   = true
+    hb.Massless   = true
+    hb.Transparency = 1
+    hb.Anchored   = false
+    hb.CFrame     = torso.CFrame
+    hb.Parent     = targetChar
+
+    local weld = Instance.new("WeldConstraint")
+    weld.Part0 = hb
+    weld.Part1 = torso
+    weld.Parent = hb
+
+    return hb
+end
+
+local function AutoKillAll_ExecuteTarget(target, knife)
+    if not target or not target.Character or not knife or not knife.Parent then return false end
+    local tChar = target.Character
+    local tHum  = tChar:FindFirstChildOfClass("Humanoid")
+    if not tHum or tHum.Health <= 0 then return false end
+
+    local hb = createKillHitboxFor(tChar)
+    if not hb then return false end
+
+    -- 1) tenta Tool:Activate (swing da faca — normalmente dispara o remote do hit)
+    pcall(function() knife:Activate() end)
+
+    -- 2) reforça com firetouchinterest entre o Handle da faca e a hitbox
+    local handle = knife:FindFirstChild("Handle")
+    if handle and firetouchinterest then
+        pcall(function()
+            firetouchinterest(handle, hb, 0)
+            firetouchinterest(handle, hb, 1)
+        end)
+    end
+
+    -- 3) micro wait e checa se morreu
+    task.wait(0.06)
+    local morreu = (tHum.Health <= 0)
+
+    -- limpa hitbox imediatamente
+    pcall(function() hb:Destroy() end)
+    return morreu
+end
+
+local function AutoKillAll_Stop()
+    AutoKillAllState.Running = false
+end
+
+local function AutoKillAll_Run()
+    if AutoKillAllState.Running then return end
+    AutoKillAllState.Running = true
+
+    local knife, char = getKnifeTool()
+    if not knife or not char then
+        showToast("☠️ AUTO KILL ALL", "Você não é Murderer (sem faca)", DANGER_CLR)
+        AutoKillAllState.Running = false
+        return
+    end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        AutoKillAllState.Running = false
+        return
+    end
+
+    -- equipa a faca
+    if knife.Parent ~= char then
+        pcall(function() hum:EquipTool(knife) end)
+        task.wait(0.06)
+    end
+
+    -- coleta alvos válidos (Innocent + Sheriff vivos)
+    local targets = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local pHum = p.Character:FindFirstChildOfClass("Humanoid")
+            if pHum and pHum.Health > 0 then
+                local role = getPlayerRole(p)
+                if role == "Innocent" or role == "Sheriff" then
+                    table.insert(targets, p)
+                end
+            end
+        end
+    end
+
+    if #targets == 0 then
+        showToast("☠️ AUTO KILL ALL", "Sem alvos válidos", DANGER_CLR)
+        AutoKillAllState.Running = false
+        return
+    end
+
+    showToast("☠️ AUTO KILL ALL", "Alvos: " .. #targets, WARN_CLR)
+
+    for _, target in ipairs(targets) do
+        if not AutoKillAllState.Running then break end
+        -- valida se ainda é Murderer / vivo / com faca
+        local cNow = LocalPlayer.Character
+        local hNow = cNow and cNow:FindFirstChildOfClass("Humanoid")
+        if not cNow or not hNow or hNow.Health <= 0 then break end
+        if not knife or not knife.Parent then
+            local k2 = getKnifeTool()
+            if k2 then knife = k2 else break end
+        end
+        if knife.Parent ~= cNow then
+            pcall(function() hNow:EquipTool(knife) end)
+            task.wait(0.03)
+        end
+        AutoKillAll_ExecuteTarget(target, knife)
+    end
+
+    AutoKillAllState.Running = false
+    showToast("☠️ AUTO KILL ALL", "Concluído", SUCCESS_CLR)
 end
 
 --═══════════════ LAYOUT / TEMA ═══════════════
@@ -2526,7 +2656,7 @@ pcall(function() if identifyexecutor then executorNome = identifyexecutor() end 
 
 infoRow(infoBlock, 2, "👤  Jogador: " .. LocalPlayer.DisplayName, TEXT)
 infoRow(infoBlock, 3, "⚙️  Executor: " .. executorNome, TEXT)
-infoRow(infoBlock, 4, "📦  Versão: v1.3", TEXT)
+infoRow(infoBlock, 4, "📦  Versão: v1.5", TEXT)
 infoRow(infoBlock, 5, "👑  Desenvolvedor: Akira007p", Theme.Accent)
 infoRow(infoBlock, 6, "✅  Status: ● Ativo", SUCCESS_CLR)
 
@@ -2711,19 +2841,22 @@ end)
 local funcTab = createTab("Funções")
 local funcContent = funcTab.content
 
--- ── AUTO SHOOT MURDERER (novo) ──
-local shootBlock = createBlock(funcContent, 1, "🔫 AUTO SHOOT")
-createToggle(shootBlock, 2, "Auto Shoot Murderer", AutoShoot.Ativo, function(v)
-    AutoShoot.Ativo = v
+-- ── AUTO SHOOT MURDER (novo) ──
+local shootBlock = createBlock(funcContent, 1, "🔫 AUTO SHOOT MURDER")
+createToggle(shootBlock, 2, "Auto Shoot Murder", AutoShootState.Enabled, function(v)
+    AutoShootState.Enabled = v
     if v then
-        shootBtn.Show()
-        setFloatingActive(shootBtn, true,
-            Color3.fromRGB(40, 120, 255), Color3.fromRGB(40, 60, 130))
-        showToast("🔫 AUTO SHOOT", "Botão flutuante ativado", SUCCESS_CLR)
+        if not (AutoShootState.Button and AutoShootState.Button.Parent) then
+            createShootButton()
+        else
+            AutoShootState.Button.Visible = true
+        end
+        showToast("🔫 AUTO SHOOT", "Botão ativado no topo", SUCCESS_CLR)
     else
-        shootBtn.Hide()
-        setFloatingActive(shootBtn, false,
-            Color3.fromRGB(40, 120, 255), Color3.fromRGB(40, 60, 130))
+        destroyShootButton()
+        destroyMurdererHitbox(AutoShootState.HitboxTarget)
+        AutoShootState.Hitbox = nil
+        AutoShootState.HitboxTarget = nil
     end
 end)
 createButton(shootBlock, 3, "🔫  Atirar agora (1 clique)", function()
@@ -2732,27 +2865,42 @@ end)
 local shootInfoLbl = Instance.new("TextLabel", shootBlock)
 shootInfoLbl.Size = UDim2.new(1, 0, 0, 20)
 shootInfoLbl.BackgroundTransparency = 1
-shootInfoLbl.Text = "Ativado: solta botão arrastável 🔫 fora do menu."
+shootInfoLbl.Text = "Alvo: Murderer • hitbox 15 • clique simulado"
 shootInfoLbl.Font = Enum.Font.GothamMedium
 shootInfoLbl.TextSize = 10
 shootInfoLbl.TextColor3 = TEXT_DIM
 shootInfoLbl.TextXAlignment = Enum.TextXAlignment.Left
 shootInfoLbl.LayoutOrder = 4
 
--- ── AUTO KILL (fling) — preservado + botão flutuante ──
-local killBlock = createBlock(funcContent, 2, "💥 AUTO KILL")
+-- ── AUTO KILL ALL (novo, separado do Fling) ──
+local akaBlock = createBlock(funcContent, 2, "☠️ AUTO KILL ALL (Murderer)")
+createToggle(akaBlock, 2, "Auto Kill All", AutoKillAllState.Enabled, function(v)
+    AutoKillAllState.Enabled = v
+    if v then
+        showToast("☠️ AUTO KILL ALL", "Pronto (você precisa ser Murderer)", SUCCESS_CLR)
+    else
+        AutoKillAll_Stop()
+    end
+end)
+createButton(akaBlock, 3, "☠️  Executar Agora", function()
+    task.spawn(AutoKillAll_Run)
+end)
+local akaInfoLbl = Instance.new("TextLabel", akaBlock)
+akaInfoLbl.Size = UDim2.new(1, 0, 0, 34)
+akaInfoLbl.BackgroundTransparency = 1
+akaInfoLbl.Text = "Sem fling, sem TP, sem mover. Mata Innocent + Sheriff\nvia faca + hitbox. Requer ser Murderer."
+akaInfoLbl.Font = Enum.Font.GothamMedium
+akaInfoLbl.TextSize = 10
+akaInfoLbl.TextColor3 = TEXT_DIM
+akaInfoLbl.TextXAlignment = Enum.TextXAlignment.Left
+akaInfoLbl.TextWrapped = true
+akaInfoLbl.LayoutOrder = 4
+
+-- ── AUTO KILL (FLING) — só toggle/buttons DENTRO do menu ──
+local killBlock = createBlock(funcContent, 3, "💥 AUTO KILL (Fling)")
 
 createToggle(killBlock, 2, "Auto Kill (fling)", false, function(v)
     AutoFling_Set(v)
-    if v then
-        killBtn.Show()
-        setFloatingActive(killBtn, true,
-            Color3.fromRGB(200, 40, 40), Color3.fromRGB(100, 25, 25))
-    else
-        killBtn.Hide()
-        setFloatingActive(killBtn, false,
-            Color3.fromRGB(200, 40, 40), Color3.fromRGB(100, 25, 25))
-    end
 end)
 
 createOptionRow(killBlock, 3, "Alvos", {"Sheriff", "Murder", "Inocentes", "Todos"}, FlingConfig.Alvo, function(v)
@@ -2801,7 +2949,7 @@ task.spawn(function()
 end)
 
 -- ── GUN ──
-local gunBlock = createBlock(funcContent, 3, "🔫 GUN")
+local gunBlock = createBlock(funcContent, 4, "🔫 GUN")
 createToggle(gunBlock, 2, "ESP Gun Drop", GunDrop.ESPAtivo, function(v)
     GunDrop.ESPAtivo = v
     if v then task.spawn(GunDrop_VarrerAgora)
@@ -2832,12 +2980,124 @@ createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
 end)
 
 -- ── UTILITÁRIOS ──
-local utilBlock = createBlock(funcContent, 4, "⚙️ UTILITÁRIOS")
+local utilBlock = createBlock(funcContent, 5, "⚙️ UTILITÁRIOS")
 createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
 createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
 createToggle(utilBlock, 4, "Touch Fling (quem encostar voa)", false, function(v) TouchFling_Set(v) end)
 
 selectTab("Principal")
+
+--═══════════════ BOTÃO FLUTUANTE DO AUTO SHOOT ═══════════════
+-- Formato horizontal/deitado, topo da tela, permanece visível enquanto o toggle estiver ligado.
+-- NÃO é circular. Não desaparece durante o disparo.
+local function createShootButton()
+    if AutoShootState.Button and AutoShootState.Button.Parent then
+        AutoShootState.Button.Visible = true
+        return AutoShootState.Button
+    end
+
+    local W, H = 220, 44
+
+    local btn = Instance.new("TextButton")
+    btn.Name = "AKZ_ShootMurderBtn"
+    btn.AnchorPoint = Vector2.new(0.5, 0.5)
+    btn.Size = UDim2.new(0, W, 0, H)
+    btn.Position = UDim2.new(0.5, 0, 0, 55)
+    btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    btn.BackgroundTransparency = 0.15
+    btn.BorderSizePixel = 0
+    btn.Text = ""
+    btn.AutoButtonColor = false
+    btn.Active = true
+    btn.Visible = true
+    btn.ZIndex = 60
+    btn.Parent = screenGui
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10) -- retangular (não circular)
+
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(40, 120, 255)
+    stroke.Thickness = 2
+    stroke.Transparency = 0.25
+
+    local icon = Instance.new("TextLabel", btn)
+    icon.Size = UDim2.new(0, 40, 1, 0)
+    icon.Position = UDim2.new(0, 8, 0, 0)
+    icon.BackgroundTransparency = 1
+    icon.Text = "🔫"
+    icon.Font = Enum.Font.GothamBold
+    icon.TextSize = 22
+    icon.TextColor3 = Color3.new(1,1,1)
+
+    local label = Instance.new("TextLabel", btn)
+    label.Size = UDim2.new(1, -56, 1, 0)
+    label.Position = UDim2.new(0, 48, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "SHOOT MURDER"
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 14
+    label.TextColor3 = Color3.new(1,1,1)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- drag + click
+    local dragging   = false
+    local dragStart, startPos
+    local moved      = false
+
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging  = true
+            moved     = false
+            dragStart = input.Position
+            startPos  = btn.Position
+            TweenService:Create(btn, TweenInfo.new(0.08), {BackgroundTransparency = 0.0}):Play()
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundTransparency = 0.15}):Play()
+                    if not moved then
+                        task.spawn(atirarMurderer)
+                    end
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            if math.abs(delta.X) > 6 or math.abs(delta.Y) > 6 then moved = true end
+            btn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+
+    -- animação de entrada
+    btn.Size = UDim2.new(0, 0, 0, H)
+    TweenService:Create(btn, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+        Size = UDim2.new(0, W, 0, H)
+    }):Play()
+
+    AutoShootState.Button = btn
+    return btn
+end
+
+local function destroyShootButton()
+    if not (AutoShootState.Button and AutoShootState.Button.Parent) then
+        AutoShootState.Button = nil
+        return
+    end
+    local b = AutoShootState.Button
+    AutoShootState.Button = nil
+    local t = TweenService:Create(b, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+        Size = UDim2.new(0, 0, 0, 44),
+        BackgroundTransparency = 1,
+    })
+    t:Play()
+    t.Completed:Connect(function() if b then b:Destroy() end end)
+end
 
 --═══════════════ TECLA V ═══════════════
 UserInputService.InputBegan:Connect(function(input, gp)
@@ -2951,4 +3211,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[AKZ MENU mm2] v1.3 carregado 🔪")
+print("[AKZ MENU mm2] v1.5 carregado 🔪")
