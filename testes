@@ -1842,19 +1842,104 @@ local function PegarGun()
         showToast("PEGAR GUN", "Nenhuma gun encontrada", DANGER_CLR)
         return
     end
+
     local char = LocalPlayer.Character
     if not char then return end
-    local pos = gun.Position + Vector3.new(0, 2.5, 0)
-    pcall(function() char:PivotTo(CFrame.new(pos)) end)
-    task.wait(0.1)
+
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hrp and firetouchinterest then
+    if not hrp then return end
+
+    -- Guarda exatamente onde estava para voltar imediatamente.
+    local origem = char:GetPivot()
+    local velocidade = hrp.AssemblyLinearVelocity
+    local velocidadeAngular = hrp.AssemblyAngularVelocity
+
+    local pos = gun.Position + Vector3.new(0, 2.5, 0)
+
+    pcall(function()
+        char:PivotTo(CFrame.new(pos))
+    end)
+
+    -- Janela mínima só para registrar o toque da gun.
+    if firetouchinterest then
         pcall(function()
             firetouchinterest(hrp, gun, 0)
             firetouchinterest(hrp, gun, 1)
         end)
     end
-    showToast("PEGAR GUN", "Teleportado pra gun", SUCCESS_CLR)
+
+    -- Volta para a posição original sem ficar visível por muito tempo.
+    pcall(function()
+        char:PivotTo(origem)
+        hrp.AssemblyLinearVelocity = velocidade
+        hrp.AssemblyAngularVelocity = velocidadeAngular
+    end)
+
+    showToast("PEGAR GUN", "Gun coletada e posição restaurada", SUCCESS_CLR)
+end
+
+-- Ação one-shot: tenta derrubar o Sheriff usando impulso físico local.
+local function KillSheriffFling()
+    local char = LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local sheriff = nil
+    local sheriffDist = math.huge
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            local tHRP = p.Character:FindFirstChild("HumanoidRootPart")
+
+            if hum and hum.Health > 0 and tHRP and getPlayerRole(p) == "Sheriff" then
+                local dist = (tHRP.Position - hrp.Position).Magnitude
+                if dist < sheriffDist then
+                    sheriff = p
+                    sheriffDist = dist
+                end
+            end
+        end
+    end
+
+    if not sheriff or not sheriff.Character then
+        showToast("KILL SHERIFF", "Nenhum Sheriff encontrado", DANGER_CLR)
+        return
+    end
+
+    local targetHRP = sheriff.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+
+    local origem = char:GetPivot()
+    local origemVel = hrp.AssemblyLinearVelocity
+
+    -- Vai direto no alvo e aplica impulso por um instante.
+    pcall(function()
+        char:PivotTo(targetHRP.CFrame * CFrame.new(0, 0, 2))
+        hrp.AssemblyLinearVelocity = (targetHRP.Position - hrp.Position).Unit * 180 + Vector3.new(0, 45, 0)
+    end)
+
+    task.wait(0.08)
+
+    -- Tenta manter o contato/impulso por poucos frames.
+    for _ = 1, 5 do
+        if not targetHRP.Parent or not hrp.Parent then break end
+        pcall(function()
+            local dir = (targetHRP.Position - hrp.Position)
+            if dir.Magnitude > 0.01 then
+                hrp.AssemblyLinearVelocity = dir.Unit * 220 + Vector3.new(0, 55, 0)
+            end
+        end)
+        task.wait(0.03)
+    end
+
+    pcall(function()
+        char:PivotTo(origem)
+        hrp.AssemblyLinearVelocity = origemVel
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
+
+    showToast("KILL SHERIFF", "Fling executado em " .. sheriff.DisplayName, SUCCESS_CLR)
 end
 
 --════════════ Layout toggle ════════════
@@ -2123,8 +2208,12 @@ GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
 GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
 Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
 
-createButton(gunBlock, 6, "📌  Pegar Gun (teleportar)", function()
+createButton(gunBlock, 6, "📌  Pegar Gun (TP rápido)", function()
     PegarGun()
+end)
+
+createButton(gunBlock, 7, "💥  Kill Sheriff (Fling)", function()
+    KillSheriffFling()
 end)
 
 -- BLOCO AUTO KILL
