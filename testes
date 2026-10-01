@@ -1943,12 +1943,14 @@ local function FlingFoiLancado(tChar, tHum, tHRP, posInicial)
     return false
 end
 
--- flinga UM alvo até ele ser lançado/morrer (detecção) ou estourar o tempo
--- Correção do "nascer longe do alvo": o seu root é re-colado EXATAMENTE no alvo
--- em DOIS momentos de todo frame (Stepped = antes da física, Heartbeat = depois),
--- então você sempre começa cada passo da física encostado nele, em vez de
--- ir derivando longe por causa da velocidade alta.
-local function FlingarAlvo(char, hrp, hum, alvo)
+-- Flinga UM alvo no esquema "bate e volta" (hit-and-run):
+--   1) cola no alvo por uma rajada curta (BURST) com velocidade enorme
+--   2) volta IMEDIATAMENTE pro seu ponto de origem e zera tudo
+--   3) confere se o alvo foi lançado; se não, repete
+-- Assim você nunca acompanha a vítima pra fora do mapa (era isso que te matava junto).
+local FLING_BURST = 0.25
+
+local function FlingarAlvo(char, hrp, hum, alvo, origem)
     local tChar = alvo.Character
     local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
     local tHRP  = tHum and tHum.RootPart
@@ -1968,7 +1970,6 @@ local function FlingarAlvo(char, hrp, hum, alvo)
     local function colar()
         if not tHRP.Parent or not hrp.Parent then return end
         local vel = tHRP.AssemblyLinearVelocity
-        -- pequena previsão só no plano horizontal, limitada pra não passar do alvo
         local lead = Vector3.new(vel.X, 0, vel.Z)
         if lead.Magnitude > 40 then lead = lead.Unit * 40 end
         i = i + 1
@@ -1979,46 +1980,57 @@ local function FlingarAlvo(char, hrp, hum, alvo)
         hrp.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
     end
 
-    -- câmera acompanha o alvo (só pra você ver)
-    local cam = workspace.CurrentCamera
-    pcall(function()
-        local head = tChar:FindFirstChild("Head")
-        if cam then cam.CameraSubject = head or tHum end
-    end)
-
-    local bv = Instance.new("BodyVelocity")
-    bv.Velocity = Vector3.zero
-    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-    bv.Parent = hrp
-    pcall(function()
-        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, false)
-        hum.PlatformStand = true
-    end)
-
-    colar() -- já começa colado no alvo
-    local c1 = RunService.Stepped:Connect(colar)
-    local c2 = RunService.Heartbeat:Connect(colar)
-
-    while true do
-        if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
-        if (tick() - t0) > FlingConfig.TempoMax then break end
-        if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; break end
-        RunService.Heartbeat:Wait()
+    local function voltarOrigem()
+        for _ = 1, 3 do
+            if not hrp.Parent then return end
+            ZerarVelocidade(hrp)
+            hrp.CFrame = origem
+            pcall(function() char:PivotTo(origem) end)
+            RunService.Heartbeat:Wait()
+        end
+        ZerarVelocidade(hrp)
     end
 
-    c1:Disconnect()
-    c2:Disconnect()
-    pcall(function() bv:Destroy() end)
-    pcall(function()
-        hum.PlatformStand = false
-        hum:SetStateEnabled(Enum.HumanoidStateType.Seated, true)
-    end)
-    pcall(function() if cam then cam.CameraSubject = hum end end)
+    while not lancou do
+        if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
+        if (tick() - t0) > FlingConfig.TempoMax then break end
+
+        -- rajada curta colado no alvo
+        local c1, c2
+        local bv = Instance.new("BodyVelocity")
+        bv.Velocity = Vector3.zero
+        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+        bv.Parent = hrp
+        pcall(function()
+            colar()
+            c1 = RunService.Stepped:Connect(colar)
+            c2 = RunService.Heartbeat:Connect(colar)
+            local tb = tick()
+            while (tick() - tb) < FLING_BURST do
+                if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
+                if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; break end
+                RunService.Heartbeat:Wait()
+            end
+        end)
+        if c1 then c1:Disconnect() end
+        if c2 then c2:Disconnect() end
+        pcall(function() bv:Destroy() end)
+
+        -- volta na hora pro seu lugar (nunca fica perto da vítima)
+        voltarOrigem()
+
+        -- dá um instante pra física do alvo reagir e confere de novo
+        if not lancou then
+            task.wait(0.08)
+            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true end
+        end
+    end
+
     ZerarVelocidade(hrp)
     return lancou
 end
 
--- um ciclo completo: flinga todos os alvos selecionados, espera e volta pro lugar
+-- um ciclo completo: flinga todos os alvos selecionados e volta pro lugar
 local function FlingCiclo(silencioso)
     if FlingConfig.Andando then return end
 
@@ -2041,53 +2053,39 @@ local function FlingCiclo(silencioso)
     local origem = hrp.CFrame
     if not silencioso then showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR) end
 
-    -- evita você morrer caindo do mapa enquanto flinga
-    workspace.FallenPartsDestroyHeight = 0/0
-
-    local lancados = 0
-    local okCiclo = pcall(function()
+    pcall(function()
         for _, alvo in ipairs(alvos) do
             if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
             FlingConfig.AlvoAtual = alvo.DisplayName
-            if FlingarAlvo(char, hrp, hum, alvo) then lancados = lancados + 1 end
+            FlingarAlvo(char, hrp, hum, alvo, origem)
         end
     end)
     FlingConfig.AlvoAtual = nil
 
-    -- espera antes de voltar: fica parado (anchored) pra não ser lançado nem cair
+    -- garantia final: você termina parado exatamente onde começou
     pcall(function()
         if hrp.Parent and hum.Health > 0 then
-            ZerarVelocidade(hrp)
-            hrp.Anchored = true
-            local t = tick()
-            while (tick() - t) < FlingConfig.DelayVolta and not FlingConfig.Cancelar do task.wait(0.1) end
             hrp.Anchored = false
-
-            -- volta pro lugar (com limite de tempo)
-            local t1 = tick()
-            repeat
-                hrp.CFrame = origem * CFrame.new(0, 0.5, 0)
-                pcall(function() char:PivotTo(origem * CFrame.new(0, 0.5, 0)) end)
-                pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-                for _, part in ipairs(char:GetChildren()) do
-                    if part:IsA("BasePart") then
-                        part.AssemblyLinearVelocity = Vector3.zero
-                        part.AssemblyAngularVelocity = Vector3.zero
-                    end
+            ZerarVelocidade(hrp)
+            hrp.CFrame = origem
+            pcall(function() char:PivotTo(origem) end)
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
                 end
-                task.wait()
-            until (hrp.Position - origem.Position).Magnitude < 25 or (tick() - t1) > 3
+            end
+            -- só destrava o humanoid se ficou preso em queda/ragdoll (normal não é tocado)
+            local st = hum:GetState()
+            if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll
+            or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.PlatformStanding then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
         end
     end)
 
-    pcall(function() hrp.Anchored = false end)
-    workspace.FallenPartsDestroyHeight = FlingConfig.FPDH
     FlingConfig.Andando = false
     FlingConfig.Cancelar = false
-
-    if not silencioso then
-        showToast("FLING", lancados .. "/" .. #alvos .. " lançado(s) ✔", lancados > 0 and SUCCESS_CLR or WARN_CLR)
-    end
 end
 
 -- Auto Kill (fling): repete o ciclo enquanto o toggle estiver ligado
@@ -2422,10 +2420,6 @@ end)
 
 createSlider(killBlock, 4, "Tempo por alvo (s)", 3, 10, FlingConfig.TempoMax, false, function(v)
     FlingConfig.TempoMax = math.floor(v)
-end)
-
-createSlider(killBlock, 5, "Delay p/ voltar (s)", 1, 10, FlingConfig.DelayVolta, false, function(v)
-    FlingConfig.DelayVolta = math.floor(v)
 end)
 
 createButton(killBlock, 6, "💥  Fling agora (1x)", function()
