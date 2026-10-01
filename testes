@@ -1,18 +1,23 @@
 --[[
 ═══════════════════════════════════════════════════════════════
-   AKZ MENU mm2  —  v2.0 Professional
-   Auto Kill: loop por 1s em cada alvo • Alvo configurável
-   + Auto Murder e Pegar Gun continuam como ações
+   AKZ MENU mm2  —  v1.3
+   • Fundo com imagem (rbxassetid://87903267067222)
+   • UI semitransparente profissional
+   • Botões flutuantes (Auto Shoot Murderer / Auto Kill)
+   • Auto Kill (fling) preservado
+   • Auto Shoot Murderer via Tool:Activate + alinhamento de câmera
+   • Ações antigas preservadas (Farm, ESP, Aimbot, GunDrop, Noclip, Anti-AFK)
 ═══════════════════════════════════════════════════════════════
 --]]
 
-local Players          = game:GetService("Players")
-local RunService       = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui          = game:GetService("CoreGui")
-local TweenService     = game:GetService("TweenService")
-local ReplicatedStorage= game:GetService("ReplicatedStorage")
-local VirtualUser      = game:GetService("VirtualUser")
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local UserInputService  = game:GetService("UserInputService")
+local CoreGui           = game:GetService("CoreGui")
+local TweenService      = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser       = game:GetService("VirtualUser")
+local GuiService        = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera      = workspace.CurrentCamera
@@ -20,13 +25,10 @@ workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     Camera = workspace.CurrentCamera
 end)
 
-local Drawing
-local hasDrawing = false
-pcall(function()
-    Drawing = getfenv().Drawing
-    hasDrawing = Drawing ~= nil
-end)
+local Drawing, hasDrawing = nil, false
+pcall(function() Drawing = getfenv().Drawing; hasDrawing = Drawing ~= nil end)
 
+--═══════════════ TEMA / CORES ═══════════════
 local Theme = {
     Accent    = Color3.fromRGB(240, 240, 245),
     AccentDim = Color3.fromRGB(180, 180, 190),
@@ -38,8 +40,8 @@ local BG_TAB      = Color3.fromRGB(8, 8, 10)
 local BG_ROW      = Color3.fromRGB(22, 22, 26)
 local BG_BLOCK    = Color3.fromRGB(16, 16, 20)
 local TEXT        = Color3.fromRGB(240, 240, 245)
-local TEXT_DIM    = Color3.fromRGB(140, 140, 150)
-local STROKE_CLR  = Color3.fromRGB(40, 40, 48)
+local TEXT_DIM    = Color3.fromRGB(150, 150, 160)
+local STROKE_CLR  = Color3.fromRGB(60, 60, 70)
 local OFF_CLR     = Color3.fromRGB(55, 55, 65)
 local KNOB_OFF    = Color3.fromRGB(180, 180, 190)
 local KNOB_ON     = Color3.fromRGB(15, 15, 18)
@@ -47,15 +49,27 @@ local WARN_CLR    = Color3.fromRGB(255, 190, 60)
 local SUCCESS_CLR = Color3.fromRGB(120, 220, 140)
 local DANGER_CLR  = Color3.fromRGB(230, 90, 90)
 
+-- Transparências profissionais (imagem fica visível por trás)
+local T = {
+    Menu    = 0.28,
+    Header  = 0.35,
+    Tab     = 0.40,
+    Block   = 0.52,
+    Row     = 0.48,
+    Button  = 0.35,
+}
+
+local BG_IMAGE_ASSET = "rbxassetid://87903267067222"
+
 local ROLE_COLORS = {
     Murderer = Color3.fromRGB(220, 40, 40),
     Sheriff  = Color3.fromRGB(40, 120, 255),
     Innocent = Color3.fromRGB(50, 205, 50),
 }
 
--- ⚙️ Layouts
+--═══════════════ CONFIG GERAL ═══════════════
 local LAYOUTS = {
-    ["Em pé"]  = UDim2.new(0, 460, 0, 420),
+    ["Em pé"]   = UDim2.new(0, 460, 0, 420),
     ["Deitado"] = UDim2.new(0, 660, 0, 340),
 }
 local CurrentLayout = "Em pé"
@@ -70,15 +84,6 @@ local Config = {
 
 local TranspState = { ativo = false }
 
--- ═══════════ AKZ PROFESSIONAL UI ═══════════
-local MENU_BG_ASSET = "rbxassetid://87903267067222"
-local FloatingState = {
-    AutoShootEnabled = false,
-    AutoKillEnabled = false,
-    Buttons = {},
-}
-local FloatingDragThreshold = 6
-
 local FARM_DELAY_ENTRE_MOEDAS = 1.2
 local FARM_VERIFY_TIMEOUT     = 1.2
 local FARM_PIVOT_STEP         = 8
@@ -87,12 +92,10 @@ local FARM_VELOCITY           = 80
 local FARM_VOID_Y             = -50
 local FARM_NEAR_DIST          = 50
 
-local FarmConfig = {
-    Ativo=false, Modo="Teleporte", Coletadas=0, PosInicial=nil, Rodando=false,
-}
+local FarmConfig = { Ativo=false, Modo="Teleporte", Coletadas=0, PosInicial=nil, Rodando=false }
 
 local NoclipState  = { Ativo = false, Conn = nil, ForceState = false }
-local AntiAFKState = { Ativo = false }
+local AntiAFKState = { Ativo = false, Conn = nil }
 
 local FarmFisico = {
     Ativo=false, Loaded=false, BagFull=false, WaitingForCoins=false,
@@ -100,7 +103,7 @@ local FarmFisico = {
     CollectedLife=false, LinearVelocity=nil, Attachment=nil,
     HeartbeatConn=nil, ConnAdded=nil, ConnRemoved=nil, ConnStarted=nil,
     ConnCollected=nil, TargetFinderThr=nil, Coletadas=0,
-    LastPos=nil, StuckTime=0, CharacterParts={},
+    LastPos=nil, StuckTime=0,
 }
 
 local FF = {
@@ -114,17 +117,6 @@ local GunDropConfig = {
     UltimaGun=nil, UltimoAviso=0, Total=0,
 }
 local espCache = {}
-
--- ⚙️ Auto Kill
-local AutoKillConfig = {
-    Ativo = false,
-    Alvo  = "Inocentes",
-    Rodando = false,
-    Distancia = 12,
-    AlvoAtual = nil,
-    Trocas = 0,
-    Highlight = nil,
-}
 
 local KNIFE_KEYWORDS = {"knife","faca","blade","lâmina","lamina","punhal","dagger"}
 local GUN_KEYWORDS   = {"gun","revolver","pistol","arma","pistola","luger","m9","firearm","handgun","sidearm"}
@@ -164,6 +156,7 @@ local function getRoleColor(player)
     return ROLE_COLORS[getPlayerRole(player)] or ROLE_COLORS.Innocent
 end
 
+--═══════════════ GUI ROOT ═══════════════
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "AKZ_Menu_MM2"
 screenGui.ResetOnSpawn = false
@@ -199,6 +192,7 @@ local function showToast(titulo, subtitulo, cor)
     toast.Size = UDim2.new(1, 0, 0, 60)
     toast.Position = UDim2.new(1, 320, 0, 0)
     toast.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    toast.BackgroundTransparency = 0.15
     toast.BorderSizePixel = 0
     toast.Parent = toastHolder
     Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 8)
@@ -241,6 +235,7 @@ local function showToast(titulo, subtitulo, cor)
     end)
 end
 
+--═══════════════ FOV ═══════════════
 local fovCircle = Instance.new("Frame")
 fovCircle.AnchorPoint = Vector2.new(0.5, 0.5)
 fovCircle.Size = UDim2.fromOffset(Config.AimbotFOV * 2, Config.AimbotFOV * 2)
@@ -286,11 +281,13 @@ local function refreshFov()
 end
 refreshFov()
 
+--═══════════════ LOGO (arrastável) ═══════════════
 local logo = Instance.new("TextButton")
 logo.AnchorPoint = Vector2.new(0.5, 0.5)
 logo.Size = UDim2.new(0, 58, 0, 58)
 logo.Position = UDim2.new(0, 100, 0, 100)
 logo.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+logo.BackgroundTransparency = 0.15
 logo.BorderSizePixel = 0
 logo.Text = ""
 logo.AutoButtonColor = false
@@ -302,8 +299,6 @@ Instance.new("UICorner", logo).CornerRadius = UDim.new(1, 0)
 local logoStroke = Instance.new("UIStroke", logo)
 logoStroke.Color = Theme.Accent
 logoStroke.Thickness = 2
-
--- [REMOVIDO] Bloco do UIGradient (logoGrad) — era o "fundo/imagem" da logo.
 
 local knifeIcon = Instance.new("TextLabel", logo)
 knifeIcon.Size = UDim2.new(1, 0, 1, 0)
@@ -323,81 +318,52 @@ task.spawn(function()
     end
 end)
 
+--═══════════════ MENU ═══════════════
 local menuFrame = Instance.new("Frame")
 menuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 menuFrame.Size = LAYOUTS[CurrentLayout]
 menuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 menuFrame.BackgroundColor3 = BG
-menuFrame.BackgroundTransparency = 0.28.28
+menuFrame.BackgroundTransparency = T.Menu
 menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.ClipsDescendants = true
 menuFrame.ZIndex = 10
 menuFrame.Parent = screenGui
 
-local menuBackground = Instance.new("ImageLabel")
-menuBackground.Name = "BackgroundImage"
-menuBackground.Size = UDim2.fromScale(1, 1)
-menuBackground.Position = UDim2.fromScale(0, 0)
-menuBackground.BackgroundTransparency = 1
-menuBackground.Image = MENU_BG_ASSET
-menuBackground.ImageTransparency = 0.08
-menuBackground.ScaleType = Enum.ScaleType.Crop
-menuBackground.ZIndex = 10
-menuBackground.Parent = menuFrame
-
-local menuBackgroundOverlay = Instance.new("Frame")
-menuBackgroundOverlay.Name = "BackgroundOverlay"
-menuBackgroundOverlay.Size = UDim2.fromScale(1, 1)
-menuBackgroundOverlay.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-menuBackgroundOverlay.BackgroundTransparency = 0.56
-menuBackgroundOverlay.BorderSizePixel = 0
-menuBackgroundOverlay.ZIndex = 10
-menuBackgroundOverlay.Parent = menuFrame
-
-local menuContentLayer = Instance.new("Frame")
-menuContentLayer.Name = "ContentLayer"
-menuContentLayer.Size = UDim2.fromScale(1, 1)
-menuContentLayer.BackgroundTransparency = 1
-menuContentLayer.BorderSizePixel = 0
-menuContentLayer.ZIndex = 11
-menuContentLayer.Parent = menuFrame
-
 local menuScale = Instance.new("UIScale", menuFrame)
 menuScale.Scale = 1
-
-local function updateMenuScale()
-    local viewport = Camera and Camera.ViewportSize or Vector2.new(900, 700)
-    local targetW = LAYOUTS[CurrentLayout].X.Offset
-    local targetH = LAYOUTS[CurrentLayout].Y.Offset
-    local sx = (viewport.X - 24) / targetW
-    local sy = (viewport.Y - 24) / targetH
-    menuScale.Scale = math.clamp(math.min(sx, sy), 0.55, 1)
-end
-
-task.defer(updateMenuScale)
-workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    task.defer(updateMenuScale)
-end)
 
 Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 12)
 local menuStroke = Instance.new("UIStroke", menuFrame)
 menuStroke.Color = STROKE_CLR
 menuStroke.Thickness = 1
 
-local menuGradient = Instance.new("UIGradient")
-menuGradient.Rotation = 90
-menuGradient.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.04),
-    NumberSequenceKeypoint.new(0.55, 0.10),
-    NumberSequenceKeypoint.new(1, 0.02),
-})
-menuGradient.Parent = menuFrame
+-- Imagem de fundo do menu (fica atrás de tudo)
+local bgImage = Instance.new("ImageLabel")
+bgImage.Name = "BackgroundImage"
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.Position = UDim2.new(0, 0, 0, 0)
+bgImage.BackgroundTransparency = 1
+bgImage.BorderSizePixel = 0
+bgImage.Image = BG_IMAGE_ASSET
+bgImage.ScaleType = Enum.ScaleType.Crop
+bgImage.ImageTransparency = 0.15
+bgImage.ZIndex = 1
+bgImage.Parent = menuFrame
+
+-- leve escurecimento para manter texto legível sobre a imagem
+local bgTint = Instance.new("Frame", menuFrame)
+bgTint.Size = UDim2.new(1, 0, 1, 0)
+bgTint.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+bgTint.BackgroundTransparency = 0.55
+bgTint.BorderSizePixel = 0
+bgTint.ZIndex = 2
 
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 40)
 header.BackgroundColor3 = BG_HEADER
-header.BackgroundTransparency = 0.18
+header.BackgroundTransparency = T.Header
 header.BorderSizePixel = 0
 header.ZIndex = 11
 header.Parent = menuFrame
@@ -418,6 +384,7 @@ local closeBtn = Instance.new("TextButton")
 closeBtn.Size = UDim2.new(0, 26, 0, 26)
 closeBtn.Position = UDim2.new(1, -34, 0.5, -13)
 closeBtn.BackgroundColor3 = Color3.fromRGB(70, 70, 78)
+closeBtn.BackgroundTransparency = 0.2
 closeBtn.Text = "×"
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 18
@@ -432,7 +399,7 @@ local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, 0, 0, 34)
 tabBar.Position = UDim2.new(0, 0, 0, 40)
 tabBar.BackgroundColor3 = BG_TAB
-tabBar.BackgroundTransparency = 0.18
+tabBar.BackgroundTransparency = T.Tab
 tabBar.BorderSizePixel = 0
 tabBar.ZIndex = 11
 tabBar.Parent = menuFrame
@@ -526,7 +493,7 @@ local function createBlock(parent, order, titulo)
     block.Size = UDim2.new(1, -8, 0, 0)
     block.AutomaticSize = Enum.AutomaticSize.Y
     block.BackgroundColor3 = BG_BLOCK
-block.BackgroundTransparency = 0.20
+    block.BackgroundTransparency = T.Block
     block.BorderSizePixel = 0
     block.LayoutOrder = order
     block.Parent = parent
@@ -534,7 +501,7 @@ block.BackgroundTransparency = 0.20
     local st = Instance.new("UIStroke", block)
     st.Color = Theme.Accent
     st.Thickness = 1.5
-    st.Transparency = 0.5
+    st.Transparency = 0.55
     local pad = Instance.new("UIPadding", block)
     pad.PaddingTop = UDim.new(0, 10)
     pad.PaddingBottom = UDim.new(0, 10)
@@ -561,7 +528,7 @@ local function createToggle(parent, order, label, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 32)
     row.BackgroundColor3 = BG_ROW
-row.BackgroundTransparency = 0.18
+    row.BackgroundTransparency = T.Row
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -580,6 +547,7 @@ row.BackgroundTransparency = 0.18
     track.Size = UDim2.new(0, 38, 0, 20)
     track.Position = UDim2.new(1, -50, 0.5, -10)
     track.BackgroundColor3 = initial and Theme.Accent or OFF_CLR
+    track.BackgroundTransparency = 0.1
     track.BorderSizePixel = 0
     track.Parent = row
     Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
@@ -613,7 +581,7 @@ local function createOptionRow(parent, order, label, options, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 34)
     row.BackgroundColor3 = BG_ROW
-row.BackgroundTransparency = 0.18
+    row.BackgroundTransparency = T.Row
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -643,6 +611,7 @@ row.BackgroundTransparency = 0.18
         for n, b in pairs(buttons) do
             local active = n == name
             b.BackgroundColor3 = active and Theme.Accent or OFF_CLR
+            b.BackgroundTransparency = active and 0.1 or 0.3
             b.TextColor3 = active and Color3.fromRGB(15, 15, 18) or TEXT_DIM
         end
     end
@@ -651,6 +620,7 @@ row.BackgroundTransparency = 0.18
         b.Size = UDim2.new(0, 0, 1, 0)
         b.AutomaticSize = Enum.AutomaticSize.X
         b.BackgroundColor3 = OFF_CLR
+        b.BackgroundTransparency = 0.3
         b.Text = name
         b.Font = Enum.Font.GothamBold
         b.TextSize = 10
@@ -677,6 +647,7 @@ local function createSlider(parent, order, label, minV, maxV, initial, isFloat, 
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 42)
     row.BackgroundColor3 = BG_ROW
+    row.BackgroundTransparency = T.Row
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -705,6 +676,7 @@ local function createSlider(parent, order, label, minV, maxV, initial, isFloat, 
     bar.Size = UDim2.new(1, -24, 0, 6)
     bar.Position = UDim2.new(0, 12, 0, 28)
     bar.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+    bar.BackgroundTransparency = 0.2
     bar.BorderSizePixel = 0
     bar.Parent = row
     Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
@@ -763,7 +735,7 @@ local function createButton(parent, order, label, onClick)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 34)
     btn.BackgroundColor3 = Color3.fromRGB(34, 34, 42)
-    btn.BackgroundTransparency = 0.18
+    btn.BackgroundTransparency = T.Button
     btn.BorderSizePixel = 0
     btn.Text = label
     btn.Font = Enum.Font.GothamBold
@@ -788,19 +760,14 @@ local function createButton(parent, order, label, onClick)
     return btn
 end
 
--- ────────────────────────────────────────────────────────────
--- Transparência (CORRIGIDO)
---   • guarda o valor original uma única vez (attribute)
---   • se chamado de novo com o mesmo estado, não faz nada
---   • nunca acumula transparência
--- ────────────────────────────────────────────────────────────
+--═══════════════ TRANSPARÊNCIA MANUAL ═══════════════
 local function Transp_AplicarEm(obj)
     if not obj:IsA("GuiObject") then return end
     if obj:GetAttribute("AKZ_OrigBT") ~= nil then return end
     local bt = obj.BackgroundTransparency
     if bt >= 0.9 then return end
     obj:SetAttribute("AKZ_OrigBT", bt)
-    obj.BackgroundTransparency = math.min(0.88, bt + 0.5)
+    obj.BackgroundTransparency = math.min(0.9, bt + 0.35)
 end
 
 local function Transp_RestaurarEm(obj)
@@ -816,14 +783,13 @@ local function Transp_Aplicar(ativar)
     if TranspState.ativo == ativar then return end
     TranspState.ativo = ativar
     if ativar then
-        menuFrame.BackgroundTransparency = 0.28
         for _, obj in ipairs(menuFrame:GetDescendants()) do Transp_AplicarEm(obj) end
     else
-        menuFrame.BackgroundTransparency = 0
         for _, obj in ipairs(menuFrame:GetDescendants()) do Transp_RestaurarEm(obj) end
     end
 end
 
+--═══════════════ ESP ═══════════════
 local HL_TAG = "AKZ_HL"
 local SKELETON_R15 = {
     {"Head","UpperTorso"}, {"UpperTorso","LowerTorso"},
@@ -1005,6 +971,7 @@ local function clearAllESP()
     for p, _ in pairs(espCache) do clearESPForPlayer(p) end
 end
 
+--═══════════════ AIMBOT ═══════════════
 local function getAimPart(char)
     if not char then return nil end
     if Config.AimbotPart == "Cabeça" then
@@ -1060,7 +1027,7 @@ local function lockOn(targetPart)
     end
 end
 
---════════════ Noclip / Anti-AFK ════════════
+--═══════════════ NOCLIP / ANTI-AFK ═══════════════
 local function Noclip_Start(force)
     if force then NoclipState.ForceState = true end
     if NoclipState.Conn then return end
@@ -1096,8 +1063,8 @@ end
 
 local function AntiAFK_Set(ativo)
     AntiAFKState.Ativo = ativo
-    if ativo then
-        task.spawn(function()
+    if ativo and not AntiAFKState.Conn then
+        AntiAFKState.Conn = task.spawn(function()
             while AntiAFKState.Ativo do
                 task.wait(30)
                 if not AntiAFKState.Ativo then break end
@@ -1110,7 +1077,7 @@ local function AntiAFK_Set(ativo)
     end
 end
 
---════════════ Farm Teleporte ════════════
+--═══════════════ FARM TELEPORTE ═══════════════
 local Farm = FarmConfig
 
 local function Farm_PegarContainer()
@@ -1374,7 +1341,7 @@ local function Farm_Iniciar()
     end)
 end
 
---════════════ Farm Físico ════════════
+--═══════════════ FARM FÍSICO ═══════════════
 local function FF_CleanupConns()
     if FarmFisico.HeartbeatConn then FarmFisico.HeartbeatConn:Disconnect(); FarmFisico.HeartbeatConn = nil end
     if FarmFisico.ConnAdded then FarmFisico.ConnAdded:Disconnect(); FarmFisico.ConnAdded = nil end
@@ -1659,7 +1626,7 @@ local function FarmFisico_Iniciar()
     showToast("🌾 FARM FÍSICO", "Noclip ativado (não trava em paredes)", SUCCESS_CLR)
 end
 
---════════════ GunDrop ════════════
+--═══════════════ GUN DROP ═══════════════
 local GunDrop = GunDropConfig
 
 local function ehGun(obj)
@@ -1683,6 +1650,8 @@ local function ehGun(obj)
     return obj:FindFirstChildOfClass("TouchTransmitter") ~= nil
         or obj:FindFirstChild("TouchInterest") ~= nil
 end
+
+local GunDrop_CountLbl
 
 local function GunDrop_Processar(obj)
     if not obj or not obj.Parent then return end
@@ -1742,7 +1711,299 @@ local function GunDrop_VarrerAgora()
     end
 end
 
---════════════ Auto Kill (loop por 1s em cada alvo) ════════════
+--═══════════════ AUTO KILL (FLING) — preservado ═══════════════
+local FlingConfig = {
+    Alvo        = "Sheriff",
+    TempoMax    = 6,
+    DelayVolta  = 4,
+    Andando     = false,
+    TouchAtivo  = false,
+    AutoAtivo   = false,
+    Cancelar    = false,
+    AlvoAtual   = nil,
+    MapaCache   = nil,
+}
+
+function FlingConfig.LimitesMapa()
+    local container = Farm_PegarContainer()
+    if not container then return nil end
+    local raiz = container.Parent
+    if not raiz or raiz == workspace then raiz = container end
+
+    local c = FlingConfig.MapaCache
+    if c and c.raiz == raiz and raiz.Parent then return c.min, c.max end
+
+    local mn, mx
+    for _, d in ipairs(raiz:GetDescendants()) do
+        if d:IsA("BasePart") then
+            local pos = d.Position
+            if not mn then
+                mn, mx = pos, pos
+            else
+                mn = Vector3.new(math.min(mn.X, pos.X), math.min(mn.Y, pos.Y), math.min(mn.Z, pos.Z))
+                mx = Vector3.new(math.max(mx.X, pos.X), math.max(mx.Y, pos.Y), math.max(mx.Z, pos.Z))
+            end
+        end
+    end
+    if not mn then return nil end
+    local margem = Vector3.new(80, 150, 80)
+    mn, mx = mn - margem, mx + margem
+    FlingConfig.MapaCache = { raiz = raiz, min = mn, max = mx }
+    return mn, mx
+end
+
+function FlingConfig.EmPartida(role, pos, ancoras)
+    if role == "Sheriff" or role == "Murderer" then return true end
+    local mn, mx = FlingConfig.LimitesMapa()
+    if mn then
+        return pos.X >= mn.X and pos.X <= mx.X
+           and pos.Y >= mn.Y and pos.Y <= mx.Y
+           and pos.Z >= mn.Z and pos.Z <= mx.Z
+    end
+    for _, a in ipairs(ancoras) do
+        if (a - pos).Magnitude <= 350 then return true end
+    end
+    return false
+end
+
+local function FlingListarAlvos()
+    local ordem = { Sheriff = 1, Murderer = 2, Innocent = 3 }
+    local candidatos, ancoras = {}, {}
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer and p.Character then
+            local h = p.Character:FindFirstChildOfClass("Humanoid")
+            local r = p.Character:FindFirstChild("HumanoidRootPart")
+            if h and r and h.Health > 0 then
+                local role = getPlayerRole(p)
+                table.insert(candidatos, { p = p, role = role, pos = r.Position })
+                if role ~= "Innocent" then table.insert(ancoras, r.Position) end
+            end
+        end
+    end
+
+    local alvo = FlingConfig.Alvo
+    local escolhidos = {}
+    for _, c in ipairs(candidatos) do
+        local ok = false
+        if     alvo == "Todos"     then ok = true
+        elseif alvo == "Sheriff"   then ok = (c.role == "Sheriff")
+        elseif alvo == "Murder"    then ok = (c.role == "Murderer")
+        elseif alvo == "Inocentes" then ok = (c.role == "Innocent") end
+        if ok and FlingConfig.EmPartida(c.role, c.pos, ancoras) then
+            table.insert(escolhidos, c)
+        end
+    end
+
+    table.sort(escolhidos, function(x, y) return ordem[x.role] < ordem[y.role] end)
+
+    local lista = {}
+    for _, c in ipairs(escolhidos) do table.insert(lista, c.p) end
+    return lista
+end
+
+local function FlingFoiLancado(tChar, tHum, tHRP, posInicial)
+    if not tChar or not tChar.Parent then return true end
+    if not tHRP or not tHRP.Parent then return true end
+    if tHum and tHum.Health <= 0 then return true end
+    if (tHRP.Position - posInicial).Magnitude > 250 then return true end
+    if tHRP.AssemblyLinearVelocity.Magnitude > 2000 then return true end
+    if tHRP.Position.Y < (workspace.FallenPartsDestroyHeight + 80) then return true end
+    return false
+end
+
+local function ZerarVelocidade(hrp)
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local function TouchEngine(ativoFn, pausarFn, pre)
+    local mov = 0.1
+    local ang = 0
+    while ativoFn() do
+        RunService.Heartbeat:Wait()
+        local char = LocalPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hrp and not (pausarFn and pausarFn()) then
+            if pre then pre() end
+            local vel = hrp.AssemblyLinearVelocity
+            local base = vel
+            if pre and vel.Magnitude < 1 then
+                ang = ang + 1.3
+                base = Vector3.new(math.cos(ang) * 16, 0, math.sin(ang) * 16)
+            end
+            pcall(function()
+                hrp.AssemblyLinearVelocity = base * 1e7 + Vector3.new(0, 1e7, 0)
+            end)
+            RunService.RenderStepped:Wait()
+            if pre then pre() end
+            pcall(function() hrp.AssemblyLinearVelocity = vel end)
+            RunService.Stepped:Wait()
+            if pre then pre() end
+            pcall(function() hrp.AssemblyLinearVelocity = vel + Vector3.new(0, mov, 0) end)
+            mov = -mov
+        end
+    end
+end
+
+local function FlingarAlvo(char, hrp, hum, alvo, origem)
+    local tChar = alvo.Character
+    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    local tHRP  = tHum and tHum.RootPart
+    if not tChar or not tHum or not tHRP then return false end
+    if tHum.Sit then return false end
+
+    local posInicial = tHRP.Position
+    local t0 = tick()
+    local lancou = false
+    local k, ang, mov = 0, 0, 0.1
+    local offsets = {
+        Vector3.new(0, 0, 0),   Vector3.new(0.8, 0, 0), Vector3.new(-0.8, 0, 0),
+        Vector3.new(0, 0, 0.8), Vector3.new(0, 0, -0.8), Vector3.new(0, 0.8, 0),
+    }
+
+    local armado = (getPlayerRole(alvo) == "Murderer")
+    local costas = {
+        Vector3.new(0, 0, 0.9),    Vector3.new(0.2, 0.2, 0.85),
+        Vector3.new(-0.2, -0.2, 0.85), Vector3.new(0, 0.3, 0.8),
+    }
+
+    local function colar()
+        if not tHRP.Parent or not hrp.Parent then return end
+        k = k + 1
+        if armado then
+            hrp.CFrame = tHRP.CFrame * CFrame.new(costas[(k % #costas) + 1])
+        else
+            hrp.CFrame = CFrame.new(tHRP.Position + offsets[(k % #offsets) + 1])
+        end
+    end
+
+    local function voltarOrigem()
+        for _ = 1, 3 do
+            if not hrp.Parent then return end
+            ZerarVelocidade(hrp)
+            hrp.CFrame = origem
+            pcall(function() char:PivotTo(origem) end)
+            RunService.Heartbeat:Wait()
+        end
+        ZerarVelocidade(hrp)
+    end
+
+    local okLoop, errLoop = pcall(function()
+        TouchEngine(function()
+            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then return false end
+            if (tick() - t0) > FlingConfig.TempoMax then return false end
+            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; return false end
+            return true
+        end, nil, colar)
+    end)
+    if not okLoop then warn("[FLING] erro: " .. tostring(errLoop)) end
+
+    voltarOrigem()
+    return lancou
+end
+
+local function FlingCiclo(silencioso)
+    if FlingConfig.Andando then return end
+
+    local char = LocalPlayer.Character
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    local hrp  = hum and hum.RootPart
+    if not hrp or hum.Health <= 0 then
+        if not silencioso then showToast("FLING", "Seu personagem está morto", DANGER_CLR) end
+        return
+    end
+
+    local alvos = FlingListarAlvos()
+    if #alvos == 0 then
+        if not silencioso then showToast("FLING", "Nenhum alvo (" .. FlingConfig.Alvo .. ") vivo", DANGER_CLR) end
+        return
+    end
+
+    FlingConfig.Andando = true
+    FlingConfig.Cancelar = false
+    local origem = hrp.CFrame
+    if not silencioso then showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR) end
+
+    local okCiclo, errCiclo = pcall(function()
+        for _, alvo in ipairs(alvos) do
+            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
+            FlingConfig.AlvoAtual = alvo.DisplayName
+            FlingarAlvo(char, hrp, hum, alvo, origem)
+        end
+    end)
+    FlingConfig.AlvoAtual = nil
+    if not okCiclo then
+        warn("[FLING] erro: " .. tostring(errCiclo))
+        showToast("FLING (erro)", tostring(errCiclo):sub(1, 70), DANGER_CLR)
+    end
+
+    pcall(function()
+        if hrp.Parent and hum.Health > 0 then
+            hrp.Anchored = false
+            ZerarVelocidade(hrp)
+            hrp.CFrame = origem
+            pcall(function() char:PivotTo(origem) end)
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.AssemblyLinearVelocity = Vector3.zero
+                    part.AssemblyAngularVelocity = Vector3.zero
+                end
+            end
+            local st = hum:GetState()
+            if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll
+            or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.PlatformStanding then
+                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
+            end
+        end
+    end)
+
+    FlingConfig.Andando = false
+    FlingConfig.Cancelar = false
+end
+
+local function AutoFling_Set(ativo)
+    if ativo == FlingConfig.AutoAtivo then return end
+    FlingConfig.AutoAtivo = ativo
+    if not ativo then
+        FlingConfig.Cancelar = true
+        showToast("💥 AUTO KILL", "Desligado", DANGER_CLR)
+        return
+    end
+    showToast("💥 AUTO KILL (FLING)", "Alvos: " .. FlingConfig.Alvo, SUCCESS_CLR)
+    task.spawn(function()
+        while FlingConfig.AutoAtivo do
+            if #FlingListarAlvos() == 0 then
+                task.wait(1)
+            else
+                FlingCiclo(true)
+                task.wait(0.5)
+            end
+        end
+    end)
+end
+
+local function TouchFling_Set(ativo)
+    if ativo == FlingConfig.TouchAtivo then return end
+    FlingConfig.TouchAtivo = ativo
+    if not ativo then return end
+    task.spawn(function()
+        TouchEngine(
+            function() return FlingConfig.TouchAtivo end,
+            function() return FlingConfig.Andando end,
+            nil
+        )
+    end)
+end
+
+--═══════════════ AUTOKILL (Highlight antigo) — preservado ═══════════════
+local AutoKillConfig = {
+    Ativo = false, Alvo = "Inocentes", Rodando = false, Distancia = 12,
+    AlvoAtual = nil, Trocas = 0, Highlight = nil,
+}
+
 local function clearAlvoHighlight()
     if AutoKillConfig.Highlight then
         pcall(function() AutoKillConfig.Highlight:Destroy() end)
@@ -1783,9 +2044,7 @@ local function AutoKill_ListarAlvos()
                 if AutoKillConfig.Alvo == "Inocentes" and role == "Innocent" then ok = true end
                 if AutoKillConfig.Alvo == "Sheriff"   and role == "Sheriff"  then ok = true end
                 if AutoKillConfig.Alvo == "Murder"    and role == "Murderer" then ok = true end
-                if ok then
-                    table.insert(lista, p)
-                end
+                if ok then table.insert(lista, p) end
             end
         end
     end
@@ -1880,7 +2139,7 @@ local function AutoKill_Iniciar()
     end)
 end
 
---════════════ Ação one-shot: Pegar Gun ════════════
+--═══════════════ PEGAR GUN (preservado) ═══════════════
 local function AcharGunMaisProxima()
     local char = LocalPlayer.Character
     if not char then return nil end
@@ -1901,13 +2160,6 @@ local function AcharGunMaisProxima()
         end
     end
     return melhor
-end
-
-local function ZerarVelocidade(hrp)
-    pcall(function()
-        hrp.AssemblyLinearVelocity = Vector3.zero
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
 end
 
 local PegandoGun = false
@@ -1938,7 +2190,6 @@ local function PegarGun()
         return false
     end
 
-    -- vai, encosta na gun e já volta (rapidinho)
     pcall(function() char:PivotTo(destino) end)
     if firetouchinterest then
         pcall(function()
@@ -1966,318 +2217,258 @@ local function PegarGun()
     showToast("PEGAR GUN", temGun() and "Gun pega! Voltou pra onde estava" or "Voltou (gun não foi pega)", temGun() and SUCCESS_CLR or WARN_CLR)
 end
 
---════════════ Fling real (kill por fling) ════════════
-local FlingConfig = {
-    Alvo        = "Sheriff", -- Sheriff | Murder | Inocentes | Todos
-    TempoMax    = 6,         -- segundos tentando flingar CADA alvo
-    DelayVolta  = 4,         -- segundos esperando antes de voltar pro lugar
-    Andando     = false,     -- fling em andamento
-    TouchAtivo  = false,     -- touch fling passivo ligado
-    AutoAtivo   = false,     -- Auto Kill (fling) em loop ligado
-    Cancelar    = false,     -- pede pra parar o fling atual
-    AlvoAtual   = nil,       -- nome mostrado no status
-    FPDH        = workspace.FallenPartsDestroyHeight,
-}
+--═══════════════ AUTO SHOOT MURDERER (nova) ═══════════════
+-- Reutiliza getPlayerRole + GUN_KEYWORDS. Não teleporta, não move, não fling.
+-- Para disparar, faz Tool:Activate() após alinhar a câmera com o Murderer.
+-- Se no seu ambiente existirem remotes reais do MM2 para o disparo, cole-os em tryFireToolRemote().
+local AutoShoot = { Ativo = false, Disparando = false, UltimoDisparo = 0 }
 
--- Limites (caixa) do mapa da partida, a partir do CoinContainer (o mesmo que o Farm usa).
--- Quem está no lobby/spawn fica FORA dessa caixa. Guardado em cache enquanto o mapa existir.
-FlingConfig.MapaCache = nil
-function FlingConfig.LimitesMapa()
-    local container = Farm_PegarContainer()
-    if not container then return nil end
-    local raiz = container.Parent
-    if not raiz or raiz == workspace then raiz = container end
-
-    local c = FlingConfig.MapaCache
-    if c and c.raiz == raiz and raiz.Parent then return c.min, c.max end
-
-    local mn, mx
-    for _, d in ipairs(raiz:GetDescendants()) do
-        if d:IsA("BasePart") then
-            local pos = d.Position
-            if not mn then
-                mn, mx = pos, pos
-            else
-                mn = Vector3.new(math.min(mn.X, pos.X), math.min(mn.Y, pos.Y), math.min(mn.Z, pos.Z))
-                mx = Vector3.new(math.max(mx.X, pos.X), math.max(mx.Y, pos.Y), math.max(mx.Z, pos.Z))
-            end
-        end
-    end
-    if not mn then return nil end
-    local margem = Vector3.new(80, 150, 80)
-    mn, mx = mn - margem, mx + margem
-    FlingConfig.MapaCache = { raiz = raiz, min = mn, max = mx }
-    return mn, mx
-end
-
--- Identificador "está em partida?":
---   Sheriff e Murderer -> sempre (só existem em partida)
---   Inocente           -> só se estiver dentro da caixa do mapa (lobby/spawn fica de fora)
---   Sem mapa achado    -> inocente só conta se estiver a até 350 studs do murder/sheriff
-function FlingConfig.EmPartida(role, pos, ancoras)
-    if role == "Sheriff" or role == "Murderer" then return true end
-    local mn, mx = FlingConfig.LimitesMapa()
-    if mn then
-        return pos.X >= mn.X and pos.X <= mx.X
-           and pos.Y >= mn.Y and pos.Y <= mx.Y
-           and pos.Z >= mn.Z and pos.Z <= mx.Z
-    end
-    for _, a in ipairs(ancoras) do
-        if (a - pos).Magnitude <= 350 then return true end
-    end
-    return false
-end
-
-local function FlingListarAlvos()
-    local ordem = { Sheriff = 1, Murderer = 2, Innocent = 3 }
-    local candidatos, ancoras = {}, {}
-
+local function findMurderer()
+    local melhor, melhorHum
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
-            local h = p.Character:FindFirstChildOfClass("Humanoid")
-            local r = p.Character:FindFirstChild("HumanoidRootPart")
-            if h and r and h.Health > 0 then
-                local role = getPlayerRole(p)
-                table.insert(candidatos, { p = p, role = role, pos = r.Position })
-                if role ~= "Innocent" then table.insert(ancoras, r.Position) end
+            local hum = p.Character:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and getPlayerRole(p) == "Murderer" then
+                return p, hum
             end
         end
     end
-
-    local alvo = FlingConfig.Alvo
-    local escolhidos = {}
-    for _, c in ipairs(candidatos) do
-        local ok = false
-        if     alvo == "Todos"     then ok = true -- Sheriff + Murder + Inocentes (só quem está em partida)
-        elseif alvo == "Sheriff"   then ok = (c.role == "Sheriff")
-        elseif alvo == "Murder"    then ok = (c.role == "Murderer")
-        elseif alvo == "Inocentes" then ok = (c.role == "Innocent") end
-        if ok and FlingConfig.EmPartida(c.role, c.pos, ancoras) then
-            table.insert(escolhidos, c)
-        end
-    end
-
-    -- ordem: Sheriff primeiro (a gun dropa), depois Murder, depois Inocentes
-    table.sort(escolhidos, function(x, y) return ordem[x.role] < ordem[y.role] end)
-
-    local lista = {}
-    for _, c in ipairs(escolhidos) do table.insert(lista, c.p) end
-    return lista
+    return nil
 end
 
--- detecta se o alvo realmente foi lançado / saiu do mapa / morreu
-local function FlingFoiLancado(tChar, tHum, tHRP, posInicial)
-    if not tChar or not tChar.Parent then return true end      -- saiu do jogo/personagem sumiu
-    if not tHRP or not tHRP.Parent then return true end
-    if tHum and tHum.Health <= 0 then return true end          -- morreu
-    if (tHRP.Position - posInicial).Magnitude > 250 then return true end   -- voou longe
-    if tHRP.AssemblyLinearVelocity.Magnitude > 2000 then return true end  -- velocidade de lançamento
-    if tHRP.Position.Y < (workspace.FallenPartsDestroyHeight + 80) then return true end -- caiu do mapa
+local function getToolByKeyword(kw)
+    local char = LocalPlayer.Character
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    for _, c in ipairs({char, bp}) do
+        if c then
+            for _, o in ipairs(c:GetChildren()) do
+                if o:IsA("Tool") and checkKeyword(o.Name, kw) then return o, char end
+            end
+        end
+    end
+    return nil, char
+end
+
+-- Gancho opcional: se você tiver remote de disparo, use aqui.
+-- Ex.: local r = tool:FindFirstChildOfClass("RemoteEvent"); if r then r:FireServer(args) end
+local function tryFireToolRemote(tool, alvoPart)
+    -- Mantido intencionalmente vazio: o script não inventa remotes.
+    -- Se MM2 tiver remote confirmado, adicione aqui.
     return false
 end
 
--- MOTOR TOUCH FLING (o mesmo que funciona no toggle de Utilitários).
--- Usado pelo toggle "Touch Fling" E pelo Auto Kill / Fling 1x (touch fling próprio).
---   ativoFn() -> enquanto retornar true o motor continua rodando
---   pausarFn() -> (opcional) se true, o motor fica em pausa
---   pre()      -> (opcional) chamado em toda fase do frame; usado pra colar você no alvo
-local function TouchEngine(ativoFn, pausarFn, pre)
-    local mov = 0.1
-    local ang = 0
-    while ativoFn() do
-        RunService.Heartbeat:Wait()
-        local char = LocalPlayer.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if hrp and not (pausarFn and pausarFn()) then
-            if pre then pre() end
-            local vel = hrp.AssemblyLinearVelocity
-            local base = vel
-            if pre and vel.Magnitude < 1 then
-                -- parado em cima do alvo: simula você "correndo" contra ele em várias direções
-                ang = ang + 1.3
-                base = Vector3.new(math.cos(ang) * 16, 0, math.sin(ang) * 16)
-            end
-            pcall(function()
-                hrp.AssemblyLinearVelocity = base * 1e7 + Vector3.new(0, 1e7, 0)
-            end)
-            RunService.RenderStepped:Wait()
-            if pre then pre() end
-            pcall(function() hrp.AssemblyLinearVelocity = vel end)
-            RunService.Stepped:Wait()
-            if pre then pre() end
-            pcall(function() hrp.AssemblyLinearVelocity = vel + Vector3.new(0, mov, 0) end)
-            mov = -mov
+local function atirarMurderer()
+    if AutoShoot.Disparando then return end
+    AutoShoot.Disparando = true
+
+    task.spawn(function()
+        local murderer, mHum = findMurderer()
+        if not murderer then
+            showToast("🔫 AUTO SHOOT", "Nenhum Murderer válido", DANGER_CLR)
+            AutoShoot.Disparando = false
+            return
         end
-    end
+
+        local gun, char = getToolByKeyword(GUN_KEYWORDS)
+        if not gun then
+            showToast("🔫 AUTO SHOOT", "Sem arma (não é Sheriff)", DANGER_CLR)
+            AutoShoot.Disparando = false
+            return
+        end
+
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not hum or hum.Health <= 0 then
+            AutoShoot.Disparando = false
+            return
+        end
+
+        if gun.Parent ~= char then
+            pcall(function() hum:EquipTool(gun) end)
+            task.wait(0.06)
+        end
+
+        local mChar = murderer.Character
+        if not mChar then AutoShoot.Disparando = false; return end
+        local mHead  = mChar:FindFirstChild("Head")
+                     or mChar:FindFirstChild("UpperTorso")
+                     or mChar:FindFirstChild("Torso")
+                     or mChar:FindFirstChild("HumanoidRootPart")
+        if not mHead or (mHum and mHum.Health <= 0) then
+            AutoShoot.Disparando = false
+            return
+        end
+
+        local camPos = Camera.CFrame.Position
+        local dir    = mHead.Position - camPos
+        if dir.Magnitude > 0.01 then
+            Camera.CFrame = CFrame.lookAt(camPos, camPos + dir.Unit)
+        end
+
+        -- Tenta remote (se um dia existir no script) e cai no Activate nativo.
+        if not tryFireToolRemote(gun, mHead) then
+            pcall(function() gun:Activate() end)
+        end
+
+        task.wait(0.05)
+        AutoShoot.Disparando = false
+        showToast("🔫 AUTO SHOOT", "Disparo em " .. murderer.DisplayName, SUCCESS_CLR)
+    end)
 end
 
--- Flinga UM alvo usando o MESMO truque do Touch Fling (que já funciona no seu jogo):
---   Heartbeat      -> você é posto em cima do alvo e a velocidade é inflada (pico que vai pra rede)
---   RenderStepped  -> a velocidade volta ao normal localmente (você não voa)
---   Stepped        -> mini variação de velocidade (anti-cancelamento)
--- Diferença pro Touch Fling: em vez de esperar alguém encostar, você é colado no alvo.
--- Assim que o alvo é lançado/morre/some, você volta na hora pro seu ponto de origem.
-local function FlingarAlvo(char, hrp, hum, alvo, origem)
-    local tChar = alvo.Character
-    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
-    local tHRP  = tHum and tHum.RootPart
-    if not tChar or not tHum or not tHRP then return false end
-    if tHum.Sit then return false end -- sentado não é flingável
+--═══════════════ BOTÕES FLUTUANTES ═══════════════
+-- Botão circular, arrastável por mouse/touch, distingue clique de arrasto,
+-- com feedback visual e aparição/desaparição suave via TweenService.
+local floatingButtons = {}
 
-    local posInicial = tHRP.Position
-    local t0 = tick()
-    local lancou = false
-    local k, ang, mov = 0, 0, 0.1
-    local offsets = {
-        Vector3.new(0, 0, 0),   Vector3.new(0.8, 0, 0), Vector3.new(-0.8, 0, 0),
-        Vector3.new(0, 0, 0.8), Vector3.new(0, 0, -0.8), Vector3.new(0, 0.8, 0),
-    }
+local function createFloatingButton(nome, icone, posicaoInicial, corBase)
+    local btn = Instance.new("TextButton")
+    btn.Name = "AKZ_Float_" .. nome
+    btn.AnchorPoint = Vector2.new(0, 0)
+    btn.Size = UDim2.new(0, 56, 0, 56)
+    btn.Position = posicaoInicial
+    btn.BackgroundColor3 = corBase
+    btn.BackgroundTransparency = 0.15
+    btn.BorderSizePixel = 0
+    btn.Text = icone
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 22
+    btn.TextColor3 = Color3.new(1,1,1)
+    btn.AutoButtonColor = false
+    btn.Active = true
+    btn.Visible = false
+    btn.ZIndex = 50
+    btn.Parent = screenGui
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
 
-    -- Murder (faca na mão): fica NAS COSTAS dele, só encostando de leve, olhando pro mesmo lado.
-    -- A faca fica à frente/na mão, então atrás você não é atingido.
-    local armado = (getPlayerRole(alvo) == "Murderer")
-    local costas = {
-        Vector3.new(0, 0, 0.9),    Vector3.new(0.2, 0.2, 0.85),
-        Vector3.new(-0.2, -0.2, 0.85), Vector3.new(0, 0.3, 0.8),
-    }
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.new(1,1,1)
+    stroke.Thickness = 2
+    stroke.Transparency = 0.35
 
-    -- põe seu root no alvo (sem girar, sem velocidade persistente)
-    local function colar()
-        if not tHRP.Parent or not hrp.Parent then return end
-        k = k + 1
-        if armado then
-            hrp.CFrame = tHRP.CFrame * CFrame.new(costas[(k % #costas) + 1])
-        else
-            hrp.CFrame = CFrame.new(tHRP.Position + offsets[(k % #offsets) + 1])
-        end
+    local shadow = Instance.new("Frame", btn)
+    shadow.Size = UDim2.new(1, 6, 1, 6)
+    shadow.Position = UDim2.new(0, -3, 0, -3)
+    shadow.BackgroundColor3 = Color3.new(0,0,0)
+    shadow.BackgroundTransparency = 0.7
+    shadow.BorderSizePixel = 0
+    shadow.ZIndex = -1
+
+    local dragging   = false
+    local dragStart, startPos
+    local moved      = false
+    local onClickFn  = nil
+
+    local function pressDown()
+        TweenService:Create(btn, TweenInfo.new(0.1), {
+            Size = UDim2.new(0, 50, 0, 50),
+            BackgroundTransparency = 0.0,
+        }):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.1), {Transparency = 0}):Play()
     end
 
-    local function voltarOrigem()
-        for _ = 1, 3 do
-            if not hrp.Parent then return end
-            ZerarVelocidade(hrp)
-            hrp.CFrame = origem
-            pcall(function() char:PivotTo(origem) end)
-            RunService.Heartbeat:Wait()
-        end
-        ZerarVelocidade(hrp)
+    local function pressUp()
+        TweenService:Create(btn, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(0, 56, 0, 56),
+            BackgroundTransparency = 0.15,
+        }):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = 0.35}):Play()
     end
 
-    -- liga o "touch fling próprio": o motor roda colado no alvo até ele ser lançado/morrer/sumir
-    local okLoop, errLoop = pcall(function()
-        TouchEngine(function()
-            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then return false end
-            if (tick() - t0) > FlingConfig.TempoMax then return false end
-            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; return false end
-            return true
-        end, nil, colar)
-    end)
-    if not okLoop then warn("[FLING] erro: " .. tostring(errLoop)) end
-
-    -- volta na hora pro seu lugar (nunca fica perto da vítima)
-    voltarOrigem()
-    return lancou
-end
-
--- um ciclo completo: flinga todos os alvos selecionados e volta pro lugar
-local function FlingCiclo(silencioso)
-    if FlingConfig.Andando then return end
-
-    local char = LocalPlayer.Character
-    local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    local hrp  = hum and hum.RootPart
-    if not hrp or hum.Health <= 0 then
-        if not silencioso then showToast("FLING", "Seu personagem está morto", DANGER_CLR) end
-        return
-    end
-
-    local alvos = FlingListarAlvos()
-    if #alvos == 0 then
-        if not silencioso then showToast("FLING", "Nenhum alvo (" .. FlingConfig.Alvo .. ") vivo", DANGER_CLR) end
-        return
-    end
-
-    FlingConfig.Andando = true
-    FlingConfig.Cancelar = false
-    local origem = hrp.CFrame
-    if not silencioso then showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR) end
-
-    local okCiclo, errCiclo = pcall(function()
-        for _, alvo in ipairs(alvos) do
-            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
-            FlingConfig.AlvoAtual = alvo.DisplayName
-            FlingarAlvo(char, hrp, hum, alvo, origem)
-        end
-    end)
-    FlingConfig.AlvoAtual = nil
-    if not okCiclo then
-        warn("[FLING] erro: " .. tostring(errCiclo))
-        showToast("FLING (erro)", tostring(errCiclo):sub(1, 70), DANGER_CLR)
-    end
-
-    -- garantia final: você termina parado exatamente onde começou
-    pcall(function()
-        if hrp.Parent and hum.Health > 0 then
-            hrp.Anchored = false
-            ZerarVelocidade(hrp)
-            hrp.CFrame = origem
-            pcall(function() char:PivotTo(origem) end)
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.AssemblyLinearVelocity = Vector3.zero
-                    part.AssemblyAngularVelocity = Vector3.zero
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging  = true
+            moved     = false
+            dragStart = input.Position
+            startPos  = btn.Position
+            pressDown()
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    pressUp()
+                    if not moved and onClickFn then
+                        task.spawn(onClickFn)
+                    end
                 end
-            end
-            -- só destrava o humanoid se ficou preso em queda/ragdoll (normal não é tocado)
-            local st = hum:GetState()
-            if st == Enum.HumanoidStateType.FallingDown or st == Enum.HumanoidStateType.Ragdoll
-            or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.PlatformStanding then
-                hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-            end
+            end)
         end
     end)
 
-    FlingConfig.Andando = false
-    FlingConfig.Cancelar = false
-end
-
--- Auto Kill (fling): repete o ciclo enquanto o toggle estiver ligado
-local function AutoFling_Set(ativo)
-    if ativo == FlingConfig.AutoAtivo then return end
-    FlingConfig.AutoAtivo = ativo
-    if not ativo then
-        FlingConfig.Cancelar = true
-        showToast("💥 AUTO KILL", "Desligado", DANGER_CLR)
-        return
-    end
-    showToast("💥 AUTO KILL (FLING)", "Alvos: " .. FlingConfig.Alvo, SUCCESS_CLR)
-    task.spawn(function()
-        while FlingConfig.AutoAtivo do
-            if #FlingListarAlvos() == 0 then
-                task.wait(1)
-            else
-                FlingCiclo(true)
-                task.wait(0.5)
-            end
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement
+        or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            if math.abs(delta.X) > 4 or math.abs(delta.Y) > 4 then moved = true end
+            btn.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
         end
     end)
+
+    local api = {
+        btn = btn,
+        stroke = stroke,
+        SetOnClick = function(fn) onClickFn = fn end,
+        Show = function()
+            if btn.Visible then return end
+            btn.Visible = true
+            btn.Size = UDim2.new(0, 40, 0, 40)
+            btn.BackgroundTransparency = 0.6
+            TweenService:Create(btn, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, 56, 0, 56),
+                BackgroundTransparency = 0.15,
+            }):Play()
+        end,
+        Hide = function()
+            if not btn.Visible then return end
+            local t = TweenService:Create(btn, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 0, 0, 0),
+                BackgroundTransparency = 1,
+            })
+            t:Play()
+            t.Completed:Connect(function()
+                btn.Visible = false
+                btn.Size = UDim2.new(0, 56, 0, 56)
+                btn.BackgroundTransparency = 0.15
+            end)
+        end,
+        SetCor = function(c)
+            TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = c}):Play()
+        end,
+    }
+    return api
 end
 
--- Touch Fling passivo: quem encostar em você é lançado
-local function TouchFling_Set(ativo)
-    if ativo == FlingConfig.TouchAtivo then return end
-    FlingConfig.TouchAtivo = ativo
-    if not ativo then return end
+local shootBtn = createFloatingButton(
+    "AutoShoot",
+    "🔫",
+    UDim2.new(0, 20, 0, 200),
+    Color3.fromRGB(40, 120, 255)
+)
+shootBtn.SetOnClick(function() atirarMurderer() end)
+
+local killBtn = createFloatingButton(
+    "AutoKill",
+    "☠️",
+    UDim2.new(0, 20, 0, 270),
+    Color3.fromRGB(200, 40, 40)
+)
+killBtn.SetOnClick(function()
+    -- Executa o ciclo de fling instantaneamente (auto kill rápido, sem teleport manual)
     task.spawn(function()
-        TouchEngine(
-            function() return FlingConfig.TouchAtivo end,
-            function() return FlingConfig.Andando end, -- pausa enquanto o fling alvo roda (ele tem o próprio)
-            nil
-        )
+        FlingConfig.Andando = false
+        FlingCiclo(false)
     end)
+end)
+
+-- Estado visual: ativo = cor cheia, inativo = cor mais escura
+local function setFloatingActive(api, ativo, corAtiva, corInativa)
+    api.SetCor(ativo and corAtiva or corInativa)
 end
 
---════════════ Layout toggle ════════════
+--═══════════════ LAYOUT / TEMA ═══════════════
 local function setLayout(modo)
     if not LAYOUTS[modo] then return end
     CurrentLayout = modo
@@ -2286,7 +2477,6 @@ local function setLayout(modo)
     }):Play()
 end
 
---════════════ Tema ════════════
 local function applyTheme(newColor)
     local oldAccent = Theme.Accent
     Theme.Accent = newColor
@@ -2306,7 +2496,7 @@ local function applyTheme(newColor)
     pcall(function() if logoStroke.Color == oldAccent then logoStroke.Color = newColor end end)
 end
 
---════════════ ABA PRINCIPAL ════════════
+--═══════════════ ABA PRINCIPAL ═══════════════
 local principalTab = createTab("Principal")
 local principalContent = principalTab.content
 
@@ -2315,6 +2505,7 @@ local function infoRow(parent, order, texto, cor)
     local c = Instance.new("Frame", parent)
     c.Size = UDim2.new(1, 0, 0, 28)
     c.BackgroundColor3 = BG_ROW
+    c.BackgroundTransparency = T.Row
     c.BorderSizePixel = 0
     c.LayoutOrder = order
     Instance.new("UICorner", c).CornerRadius = UDim.new(0, 6)
@@ -2335,7 +2526,7 @@ pcall(function() if identifyexecutor then executorNome = identifyexecutor() end 
 
 infoRow(infoBlock, 2, "👤  Jogador: " .. LocalPlayer.DisplayName, TEXT)
 infoRow(infoBlock, 3, "⚙️  Executor: " .. executorNome, TEXT)
-infoRow(infoBlock, 4, "📦  Versão: v1.2", TEXT)
+infoRow(infoBlock, 4, "📦  Versão: v1.3", TEXT)
 infoRow(infoBlock, 5, "👑  Desenvolvedor: Akira007p", Theme.Accent)
 infoRow(infoBlock, 6, "✅  Status: ● Ativo", SUCCESS_CLR)
 
@@ -2343,6 +2534,7 @@ local discordBlock = createBlock(principalContent, 2, "💬 COMUNIDADE")
 local discordBtn = Instance.new("TextButton", discordBlock)
 discordBtn.Size = UDim2.new(1, 0, 0, 34)
 discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+discordBtn.BackgroundTransparency = 0.2
 discordBtn.BorderSizePixel = 0
 discordBtn.Text = "▶ Entrar no Discord"
 discordBtn.Font = Enum.Font.GothamBold
@@ -2355,7 +2547,7 @@ Instance.new("UICorner", discordBtn).CornerRadius = UDim.new(0, 8)
 discordBtn.MouseButton1Click:Connect(function()
     local link = "https://discord.gg/kc7myVSq3"
     pcall(function() setclipboard(link) end)
-    pcall(function() game:GetService("GuiService"):OpenBrowserWindow(link) end)
+    pcall(function() GuiService:OpenBrowserWindow(link) end)
     showToast("💬 DISCORD", "Link copiado + navegador aberto", Color3.fromRGB(88, 101, 242))
 end)
 local discordLbl = Instance.new("TextLabel", discordBlock)
@@ -2424,6 +2616,7 @@ end
 for i, preset in ipairs(PRESETS) do
     local b = Instance.new("TextButton")
     b.BackgroundColor3 = preset.cor
+    b.BackgroundTransparency = 0.1
     b.BorderSizePixel = 0
     b.Text = ""
     b.AutoButtonColor = false
@@ -2442,7 +2635,7 @@ for i, preset in ipairs(PRESETS) do
 end
 setActiveColorBorder(Theme.Accent)
 
---════════════ ABA ESP ════════════
+--═══════════════ ABA ESP ═══════════════
 local espTab = createTab("ESP")
 local espContent = espTab.content
 createSection(espContent, 1, "GERAL")
@@ -2458,7 +2651,7 @@ createSection(espContent, 10, "EXTRAS")
 createToggle(espContent, 11, "Nome", Config.ShowName, function(v) Config.ShowName = v end)
 createToggle(espContent, 12, "Tracer", Config.ShowTracer, function(v) Config.ShowTracer = v end)
 
---════════════ ABA AIMBOT ════════════
+--═══════════════ ABA AIMBOT ═══════════════
 local aimTab = createTab("Aimbot")
 local aimContent = aimTab.content
 createSection(aimContent, 1, "AIMBOT")
@@ -2473,7 +2666,7 @@ createSlider(aimContent, 9, "Transparência", 0, 1, Config.AimbotFOVAlpha, true,
 createSection(aimContent, 10, "SUAVIDADE")
 createSlider(aimContent, 11, "Smoothness (0 = snap)", 0, 0.95, Config.AimbotSmooth, true, function(v) Config.AimbotSmooth = v end)
 
---════════════ ABA FARM ════════════
+--═══════════════ ABA FARM ═══════════════
 local farmTab = createTab("Farm")
 local farmContent = farmTab.content
 createSection(farmContent, 1, "FARM DE MOEDAS")
@@ -2491,6 +2684,7 @@ createSection(farmContent, 4, "CONTADOR")
 local farmStatusLbl = Instance.new("TextLabel")
 farmStatusLbl.Size = UDim2.new(1, -8, 0, 60)
 farmStatusLbl.BackgroundColor3 = BG_ROW
+farmStatusLbl.BackgroundTransparency = T.Row
 farmStatusLbl.BorderSizePixel = 0
 farmStatusLbl.LayoutOrder = 5
 farmStatusLbl.Text = "Coletadas: 0"
@@ -2513,77 +2707,52 @@ task.spawn(function()
     end
 end)
 
---════════════ ABA FUNÇÕES ════════════
+--═══════════════ ABA FUNÇÕES ═══════════════
 local funcTab = createTab("Funções")
 local funcContent = funcTab.content
 
--- BLOCO GUN
-local gunBlock = createBlock(funcContent, 1, "🔫 GUN")
-createToggle(gunBlock, 2, "ESP Gun Drop", GunDrop.ESPAtivo, function(v)
-    GunDrop.ESPAtivo = v
-    if v then task.spawn(GunDrop_VarrerAgora)
-    elseif GunDrop.HighlightAtual then
-        pcall(function() GunDrop.HighlightAtual:Destroy() end)
-        GunDrop.HighlightAtual = nil
-    end
-end)
-createToggle(gunBlock, 3, "Aviso de arma dropada", GunDrop.AvisoDrop, function(v) GunDrop.AvisoDrop = v end)
-createToggle(gunBlock, 4, "Aviso de arma coletada", GunDrop.AvisoColeta, function(v) GunDrop.AvisoColeta = v end)
-
-GunDrop_CountLbl = Instance.new("TextLabel", gunBlock)
-GunDrop_CountLbl.Size = UDim2.new(1, 0, 0, 30)
-GunDrop_CountLbl.BackgroundColor3 = BG_ROW
-GunDrop_CountLbl.BorderSizePixel = 0
-GunDrop_CountLbl.LayoutOrder = 5
-GunDrop_CountLbl.Text = "Detectadas: 0"
-GunDrop_CountLbl.Font = Enum.Font.Code
-GunDrop_CountLbl.TextSize = 12
-GunDrop_CountLbl.TextColor3 = TEXT_DIM
-GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
-GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
-Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
-
-createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
-    task.spawn(PegarGun)
-end)
-
--- BLOCO AUTO KILL (FLING)
--- Forward declarations: os toggles são criados antes das funções flutuantes.
-local setFloatingVisible
-local autoShootButton
-local autoKillButton
-local AutoShootMurderer_Once
-local AutoKillSemTP_Once
-
-local quickBlock = createBlock(funcContent, 2, "⚡ AÇÕES RÁPIDAS")
-
-createToggle(quickBlock, 2, "Auto Shoot Murderer", false, function(v)
+-- ── AUTO SHOOT MURDERER (novo) ──
+local shootBlock = createBlock(funcContent, 1, "🔫 AUTO SHOOT")
+createToggle(shootBlock, 2, "Auto Shoot Murderer", AutoShoot.Ativo, function(v)
+    AutoShoot.Ativo = v
     if v then
-        FloatingState.AutoShootEnabled = true
-        showToast("AUTO SHOOT", "Botão flutuante habilitado para Sheriff.", SUCCESS_CLR)
-        setFloatingVisible(autoShootButton, getPlayerRole(LocalPlayer) == "Sheriff")
+        shootBtn.Show()
+        setFloatingActive(shootBtn, true,
+            Color3.fromRGB(40, 120, 255), Color3.fromRGB(40, 60, 130))
+        showToast("🔫 AUTO SHOOT", "Botão flutuante ativado", SUCCESS_CLR)
     else
-        FloatingState.AutoShootEnabled = false
-        showToast("AUTO SHOOT", "Botão flutuante desativado.", DANGER_CLR)
-        setFloatingVisible(autoShootButton, false)
+        shootBtn.Hide()
+        setFloatingActive(shootBtn, false,
+            Color3.fromRGB(40, 120, 255), Color3.fromRGB(40, 60, 130))
     end
 end)
-
-createToggle(quickBlock, 3, "Auto Kill (sem TP/fling)", false, function(v)
-    FloatingState.AutoKillEnabled = v
-    if v then
-        showToast("AUTO KILL", "Modo sem TP/fling habilitado.", SUCCESS_CLR)
-        setFloatingVisible(autoKillButton, true)
-    else
-        showToast("AUTO KILL", "Botão flutuante desativado.", DANGER_CLR)
-        setFloatingVisible(autoKillButton, false)
-    end
+createButton(shootBlock, 3, "🔫  Atirar agora (1 clique)", function()
+    task.spawn(atirarMurderer)
 end)
+local shootInfoLbl = Instance.new("TextLabel", shootBlock)
+shootInfoLbl.Size = UDim2.new(1, 0, 0, 20)
+shootInfoLbl.BackgroundTransparency = 1
+shootInfoLbl.Text = "Ativado: solta botão arrastável 🔫 fora do menu."
+shootInfoLbl.Font = Enum.Font.GothamMedium
+shootInfoLbl.TextSize = 10
+shootInfoLbl.TextColor3 = TEXT_DIM
+shootInfoLbl.TextXAlignment = Enum.TextXAlignment.Left
+shootInfoLbl.LayoutOrder = 4
 
-local killBlock = createBlock(funcContent, 3, "💥 AUTO KILL (FLING)")
+-- ── AUTO KILL (fling) — preservado + botão flutuante ──
+local killBlock = createBlock(funcContent, 2, "💥 AUTO KILL")
 
-createToggle(killBlock, 2, "Auto Kill (fling) — existente", false, function(v)
+createToggle(killBlock, 2, "Auto Kill (fling)", false, function(v)
     AutoFling_Set(v)
+    if v then
+        killBtn.Show()
+        setFloatingActive(killBtn, true,
+            Color3.fromRGB(200, 40, 40), Color3.fromRGB(100, 25, 25))
+    else
+        killBtn.Hide()
+        setFloatingActive(killBtn, false,
+            Color3.fromRGB(200, 40, 40), Color3.fromRGB(100, 25, 25))
+    end
 end)
 
 createOptionRow(killBlock, 3, "Alvos", {"Sheriff", "Murder", "Inocentes", "Todos"}, FlingConfig.Alvo, function(v)
@@ -2595,19 +2764,20 @@ createSlider(killBlock, 4, "Tempo por alvo (s)", 3, 10, FlingConfig.TempoMax, fa
     FlingConfig.TempoMax = math.floor(v)
 end)
 
-createButton(killBlock, 6, "💥  Fling agora (1x)", function()
+createButton(killBlock, 5, "💥  Fling agora (1x)", function()
     task.spawn(FlingCiclo)
 end)
 
-createButton(killBlock, 7, "⛔  Parar fling", function()
+createButton(killBlock, 6, "⛔  Parar fling", function()
     FlingConfig.Cancelar = true
 end)
 
 local killStatusLbl = Instance.new("TextLabel", killBlock)
 killStatusLbl.Size = UDim2.new(1, 0, 0, 40)
 killStatusLbl.BackgroundColor3 = BG_ROW
+killStatusLbl.BackgroundTransparency = T.Row
 killStatusLbl.BorderSizePixel = 0
-killStatusLbl.LayoutOrder = 8
+killStatusLbl.LayoutOrder = 7
 killStatusLbl.Text = "Aguardando..."
 killStatusLbl.Font = Enum.Font.Code
 killStatusLbl.TextSize = 12
@@ -2630,7 +2800,38 @@ task.spawn(function()
     end
 end)
 
--- BLOCO UTILITÁRIOS
+-- ── GUN ──
+local gunBlock = createBlock(funcContent, 3, "🔫 GUN")
+createToggle(gunBlock, 2, "ESP Gun Drop", GunDrop.ESPAtivo, function(v)
+    GunDrop.ESPAtivo = v
+    if v then task.spawn(GunDrop_VarrerAgora)
+    elseif GunDrop.HighlightAtual then
+        pcall(function() GunDrop.HighlightAtual:Destroy() end)
+        GunDrop.HighlightAtual = nil
+    end
+end)
+createToggle(gunBlock, 3, "Aviso de arma dropada", GunDrop.AvisoDrop, function(v) GunDrop.AvisoDrop = v end)
+createToggle(gunBlock, 4, "Aviso de arma coletada", GunDrop.AvisoColeta, function(v) GunDrop.AvisoColeta = v end)
+
+GunDrop_CountLbl = Instance.new("TextLabel", gunBlock)
+GunDrop_CountLbl.Size = UDim2.new(1, 0, 0, 30)
+GunDrop_CountLbl.BackgroundColor3 = BG_ROW
+GunDrop_CountLbl.BackgroundTransparency = T.Row
+GunDrop_CountLbl.BorderSizePixel = 0
+GunDrop_CountLbl.LayoutOrder = 5
+GunDrop_CountLbl.Text = "Detectadas: 0"
+GunDrop_CountLbl.Font = Enum.Font.Code
+GunDrop_CountLbl.TextSize = 12
+GunDrop_CountLbl.TextColor3 = TEXT_DIM
+GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
+GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
+Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
+
+createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
+    task.spawn(PegarGun)
+end)
+
+-- ── UTILITÁRIOS ──
 local utilBlock = createBlock(funcContent, 4, "⚙️ UTILITÁRIOS")
 createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
 createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
@@ -2638,22 +2839,7 @@ createToggle(utilBlock, 4, "Touch Fling (quem encostar voa)", false, function(v)
 
 selectTab("Principal")
 
--- Camadas finais: imagem sempre atrás e conteúdo sempre à frente.
-menuBackground.ZIndex = 10
-menuBackgroundOverlay.ZIndex = 10
-for _, child in ipairs(menuFrame:GetChildren()) do
-    if child ~= menuBackground and child ~= menuBackgroundOverlay
-        and child ~= menuGradient and child ~= menuScale
-        and child:IsA("GuiObject") then
-        child.ZIndex = math.max(child.ZIndex, 11)
-    end
-end
-header.ZIndex = 20
-tabBar.ZIndex = 20
-contentArea.ZIndex = 20
-headerTitle.ZIndex = 21
-closeBtn.ZIndex = 21
-
+--═══════════════ TECLA V ═══════════════
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.V then
@@ -2662,6 +2848,7 @@ UserInputService.InputBegan:Connect(function(input, gp)
     end
 end)
 
+--═══════════════ LOOP PRINCIPAL ═══════════════
 local wasEnabled = false
 RunService.RenderStepped:Connect(function(dt)
     local showFov = Config.AimbotEnabled and Config.AimbotShowFOV
@@ -2692,336 +2879,16 @@ Players.PlayerRemoving:Connect(function(p)
     espCache[p] = nil
 end)
 
--- ═══════════ BOTÕES FLUTUANTES ═══════════
-local floatingGui = Instance.new("ScreenGui")
-floatingGui.Name = "AKZ_FloatingControls"
-floatingGui.ResetOnSpawn = false
-floatingGui.IgnoreGuiInset = true
-floatingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-pcall(function() floatingGui.Parent = CoreGui end)
-if not floatingGui.Parent then floatingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-
-local function findSheriffTool()
-    local char = LocalPlayer.Character
-    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
-    local function scan(container)
-        if not container then return nil end
-        for _, obj in ipairs(container:GetChildren()) do
-            if obj:IsA("Tool") and checkKeyword(obj.Name, GUN_KEYWORDS) then
-                return obj
-            end
-        end
-        return nil
-    end
-    return scan(char) or scan(bp)
-end
-
-local function getMurdererTargetPart()
-    local best, bestDist = nil, math.huge
-    local myChar = LocalPlayer.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    local myPos = myRoot and myRoot.Position
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and getPlayerRole(player) == "Murderer" then
-            local char = player.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if char and hum and hum.Health > 0 then
-                local part = char:FindFirstChild("UpperTorso")
-                    or char:FindFirstChild("Torso")
-                    or char:FindFirstChild("HumanoidRootPart")
-                    or char:FindFirstChild("Head")
-                if part then
-                    local d = myPos and (part.Position - myPos).Magnitude or 0
-                    if d < bestDist then
-                        best, bestDist = part, d
-                    end
-                end
-            end
-        end
-    end
-    return best
-end
-
-AutoShootMurderer_Once = function()
-    local myChar = LocalPlayer.Character
-    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    if not myChar or not hum or hum.Health <= 0 then
-        showToast("AUTO SHOOT", "Personagem inválido.", DANGER_CLR)
-        return false
-    end
-
-    if getPlayerRole(LocalPlayer) ~= "Sheriff" then
-        showToast("AUTO SHOOT", "Você precisa estar como Sheriff.", WARN_CLR)
-        return false
-    end
-
-    local targetPart = getMurdererTargetPart()
-    if not targetPart then
-        showToast("AUTO SHOOT", "Nenhum Murderer válido encontrado.", WARN_CLR)
-        return false
-    end
-
-    local tool = findSheriffTool()
-    if not tool then
-        showToast("AUTO SHOOT", "Arma do Sheriff não encontrada.", DANGER_CLR)
-        return false
-    end
-
-    -- Reutiliza a mecânica normal da Tool. O script original não contém
-    -- RemoteEvent/RemoteFunction de disparo, então nenhum remote é inventado.
-    local oldCamera = Camera and Camera.CFrame
-    local ok = false
-
-    pcall(function()
-        if tool.Parent ~= myChar then
-            hum:EquipTool(tool)
-            task.wait()
-        end
-
-        local camPos = Camera.CFrame.Position
-        Camera.CFrame = CFrame.lookAt(camPos, targetPart.Position)
-
-        if typeof(tool.Activate) == "function" then
-            tool:Activate()
-            ok = true
-        end
-    end)
-
-    if oldCamera and Camera then
-        TweenService:Create(Camera, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {
-            CFrame = oldCamera
-        }):Play()
-    end
-
-    return ok
-end
-
-AutoKillSemTP_Once = function()
-    -- O código original possui AutoKill por PivotTo/teleporte e Fling.
-    -- Para manter a exigência "sem TP/fling", só usamos uma Tool de ataque
-    -- já existente e não inventamos RemoteEvents.
-    local myChar = LocalPlayer.Character
-    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-    if not myChar or not hum or hum.Health <= 0 then
-        showToast("AUTO KILL", "Personagem inválido.", DANGER_CLR)
-        return false
-    end
-
-    local knife
-    for _, container in ipairs({
-        myChar,
-        LocalPlayer:FindFirstChildOfClass("Backpack")
-    }) do
-        if container then
-            for _, obj in ipairs(container:GetChildren()) do
-                if obj:IsA("Tool") and checkKeyword(obj.Name, KNIFE_KEYWORDS) then
-                    knife = obj
-                    break
-                end
-            end
-        end
-        if knife then break end
-    end
-
-    if not knife then
-        showToast("AUTO KILL", "Faca/Tool existente não encontrada.", DANGER_CLR)
-        return false
-    end
-
-    -- O arquivo original não possui um remote de dano/kill à distância.
-    -- Não é seguro/tecnicamente correto fabricar um caminho inexistente.
-    if knife.Parent ~= myChar then
-        hum:EquipTool(knife)
-        task.wait()
-    end
-
-    local ok = pcall(function()
-        knife:Activate()
-    end)
-
-    if not ok then
-        showToast("AUTO KILL", "A Tool não aceita ativação remota.", WARN_CLR)
-    end
-    return ok
-end
-
-local function makeFloatingButton(name, title, position, accent, callback)
-    local old = FloatingState.Buttons[name]
-    if old and old.Parent then
-        old:Destroy()
-    end
-
-    local button = Instance.new("TextButton")
-    button.Name = "AKZ_" .. name
-    button.AnchorPoint = Vector2.new(0.5, 0.5)
-    button.Size = UDim2.fromOffset(58, 58)
-    button.Position = position
-    button.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
-    button.BackgroundTransparency = 0.12
-    button.BorderSizePixel = 0
-    button.AutoButtonColor = false
-    button.Text = title
-    button.TextColor3 = TEXT
-    button.Font = Enum.Font.GothamBold
-    button.TextSize = 11
-    button.TextWrapped = true
-    button.Active = true
-    button.Visible = false
-    button.ZIndex = 100
-    button.Parent = floatingGui
-
-    Instance.new("UICorner", button).CornerRadius = UDim.new(1, 0)
-    local stroke = Instance.new("UIStroke", button)
-    stroke.Color = accent
-    stroke.Thickness = 1.8
-    stroke.Transparency = 0.25
-
-    local scale = Instance.new("UIScale", button)
-    scale.Scale = 1
-
-    local dragging = false
-    local moved = false
-    local dragStart
-    local startPos
-
-    button.InputBegan:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-
-        dragging = true
-        moved = false
-        dragStart = input.Position
-        startPos = button.Position
-
-        TweenService:Create(scale, TweenInfo.new(0.08), {Scale = 0.90}):Play()
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if not dragging then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement
-            and input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-
-        local delta = input.Position - dragStart
-        if delta.Magnitude >= FloatingDragThreshold then
-            moved = true
-        end
-
-        button.Position = UDim2.new(
-            startPos.X.Scale, startPos.X.Offset + delta.X,
-            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-        )
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and input.UserInputType ~= Enum.UserInputType.Touch then
-            return
-        end
-
-        if not dragging then return end
-        dragging = false
-
-        TweenService:Create(scale, TweenInfo.new(0.12, Enum.EasingStyle.Back), {Scale = 1}):Play()
-
-        if not moved then
-            callback()
-        end
-    end)
-
-    FloatingState.Buttons[name] = button
-    return button
-end
-
-autoShootButton = makeFloatingButton(
-    "AutoShoot",
-    "SHOOT",
-    UDim2.new(1, -84, 0.62, 0),
-    Color3.fromRGB(70, 150, 255),
-    function()
-        local ok = AutoShootMurderer_Once()
-        stroke = nil
-        if autoShootButton and autoShootButton.Parent then
-            local st = autoShootButton:FindFirstChildOfClass("UIStroke")
-            if st then
-                st.Color = ok and SUCCESS_CLR or Color3.fromRGB(70, 150, 255)
-            end
-        end
-    end
-)
-
-autoKillButton = makeFloatingButton(
-    "AutoKill",
-    "KILL",
-    UDim2.new(1, -84, 0.74, 0),
-    DANGER_CLR,
-    function()
-        local ok = AutoKillSemTP_Once()
-        if autoKillButton and autoKillButton.Parent then
-            local st = autoKillButton:FindFirstChildOfClass("UIStroke")
-            if st then
-                st.Color = ok and SUCCESS_CLR or DANGER_CLR
-            end
-        end
-    end
-)
-
-setFloatingVisible = function(button, visible)
-    if not button then return end
-    if visible then
-        button.Visible = true
-        local s = button:FindFirstChildOfClass("UIScale")
-        if s then
-            s.Scale = 0.7
-            TweenService:Create(s, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Scale = 1}):Play()
-        end
-    else
-        local s = button:FindFirstChildOfClass("UIScale")
-        if s then
-            local tween = TweenService:Create(s, TweenInfo.new(0.18, Enum.EasingStyle.Quint), {Scale = 0.7})
-            tween:Play()
-            tween.Completed:Connect(function()
-                if button.Parent and not visible then button.Visible = false end
-            end)
-        else
-            button.Visible = false
-        end
-    end
-end
-
-local function updateFloatingButtonStates()
-    setFloatingVisible(autoShootButton, FloatingState.AutoShootEnabled and getPlayerRole(LocalPlayer) == "Sheriff")
-    setFloatingVisible(autoKillButton, FloatingState.AutoKillEnabled)
-end
-
--- Botões ficam independentes do menu. O botão de Auto Shoot fica disponível
--- durante a rodada quando o jogador é Sheriff.
-task.spawn(function()
-    while floatingGui.Parent do
-        task.wait(0.5)
-        local sheriff = getPlayerRole(LocalPlayer) == "Sheriff"
-        local shouldShow = FloatingState.AutoShootEnabled and sheriff
-        if shouldShow ~= autoShootButton.Visible then
-            setFloatingVisible(autoShootButton, shouldShow)
-        end
-    end
-end)
-
--- ═══════════ ABERTURA DO MENU ═══════════
+--═══════════════ ABRIR / FECHAR MENU ═══════════════
 local menuOpen = false
 local function openMenu()
     if menuOpen then return end
     menuOpen = true
     menuFrame.Visible = true
     menuFrame.Size = LAYOUTS[CurrentLayout]
-    local finalScale = menuScale.Scale
-    menuScale.Scale = math.max(0.42, finalScale * 0.75)
+    menuScale.Scale = 0.75
     menuFrame.Position = UDim2.new(0.5, 0, 0.5, 25)
-    TweenService:Create(menuScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale=finalScale}):Play()
+    TweenService:Create(menuScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale=1}):Play()
     TweenService:Create(menuFrame, TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, 0, 0.5, 0)
     }):Play()
@@ -3038,6 +2905,7 @@ local function closeMenu()
 end
 closeBtn.MouseButton1Click:Connect(closeMenu)
 
+--═══════════════ DRAG DO LOGO E DO MENU ═══════════════
 local logoDragging, logoDragStart, logoStartPos, logoMoved = false, nil, nil, false
 logo.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -3083,4 +2951,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[AKZ MENU mm2] v2.0 Professional carregado 🔪")
+print("[AKZ MENU mm2] v1.3 carregado 🔪")
