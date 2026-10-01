@@ -2548,6 +2548,13 @@ createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
 end)
 
 -- BLOCO AUTO KILL (FLING)
+-- Forward declarations: os toggles são criados antes das funções flutuantes.
+local setFloatingVisible
+local autoShootButton
+local autoKillButton
+local AutoShootMurderer_Once
+local AutoKillSemTP_Once
+
 local quickBlock = createBlock(funcContent, 2, "⚡ AÇÕES RÁPIDAS")
 
 createToggle(quickBlock, 2, "Auto Shoot Murderer", false, function(v)
@@ -2736,7 +2743,7 @@ local function getMurdererTargetPart()
     return best
 end
 
-local function AutoShootMurderer_Once()
+AutoShootMurderer_Once = function()
     local myChar = LocalPlayer.Character
     local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
     if not myChar or not hum or hum.Health <= 0 then
@@ -2790,7 +2797,7 @@ local function AutoShootMurderer_Once()
     return ok
 end
 
-local function AutoKillSemTP_Once()
+AutoKillSemTP_Once = function()
     -- O código original possui AutoKill por PivotTo/teleporte e Fling.
     -- Para manter a exigência "sem TP/fling", só usamos uma Tool de ataque
     -- já existente e não inventamos RemoteEvents.
@@ -2930,7 +2937,7 @@ local function makeFloatingButton(name, title, position, accent, callback)
     return button
 end
 
-local autoShootButton = makeFloatingButton(
+autoShootButton = makeFloatingButton(
     "AutoShoot",
     "SHOOT",
     UDim2.new(1, -84, 0.62, 0),
@@ -2947,7 +2954,7 @@ local autoShootButton = makeFloatingButton(
     end
 )
 
-local autoKillButton = makeFloatingButton(
+autoKillButton = makeFloatingButton(
     "AutoKill",
     "KILL",
     UDim2.new(1, -84, 0.74, 0),
@@ -2963,7 +2970,7 @@ local autoKillButton = makeFloatingButton(
     end
 )
 
-local function setFloatingVisible(button, visible)
+setFloatingVisible = function(button, visible)
     if not button then return end
     if visible then
         button.Visible = true
