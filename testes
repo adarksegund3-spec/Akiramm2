@@ -1,6 +1,6 @@
 --[[
 ═══════════════════════════════════════════════════════════════
-   AKZ MENU mm2  —  v1.2
+   AKZ MENU mm2  —  v2.0 Professional
    Auto Kill: loop por 1s em cada alvo • Alvo configurável
    + Auto Murder e Pegar Gun continuam como ações
 ═══════════════════════════════════════════════════════════════
@@ -69,6 +69,15 @@ local Config = {
 }
 
 local TranspState = { ativo = false }
+
+-- ═══════════ AKZ PROFESSIONAL UI ═══════════
+local MENU_BG_ASSET = "rbxassetid://87903267067222"
+local FloatingState = {
+    AutoShootEnabled = false,
+    AutoKillEnabled = false,
+    Buttons = {},
+}
+local FloatingDragThreshold = 6
 
 local FARM_DELAY_ENTRE_MOEDAS = 1.2
 local FARM_VERIFY_TIMEOUT     = 1.2
@@ -319,23 +328,76 @@ menuFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 menuFrame.Size = LAYOUTS[CurrentLayout]
 menuFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
 menuFrame.BackgroundColor3 = BG
+menuFrame.BackgroundTransparency = 0.28.28
 menuFrame.BorderSizePixel = 0
 menuFrame.Visible = false
 menuFrame.ClipsDescendants = true
 menuFrame.ZIndex = 10
 menuFrame.Parent = screenGui
 
+local menuBackground = Instance.new("ImageLabel")
+menuBackground.Name = "BackgroundImage"
+menuBackground.Size = UDim2.fromScale(1, 1)
+menuBackground.Position = UDim2.fromScale(0, 0)
+menuBackground.BackgroundTransparency = 1
+menuBackground.Image = MENU_BG_ASSET
+menuBackground.ImageTransparency = 0.08
+menuBackground.ScaleType = Enum.ScaleType.Crop
+menuBackground.ZIndex = 10
+menuBackground.Parent = menuFrame
+
+local menuBackgroundOverlay = Instance.new("Frame")
+menuBackgroundOverlay.Name = "BackgroundOverlay"
+menuBackgroundOverlay.Size = UDim2.fromScale(1, 1)
+menuBackgroundOverlay.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+menuBackgroundOverlay.BackgroundTransparency = 0.56
+menuBackgroundOverlay.BorderSizePixel = 0
+menuBackgroundOverlay.ZIndex = 10
+menuBackgroundOverlay.Parent = menuFrame
+
+local menuContentLayer = Instance.new("Frame")
+menuContentLayer.Name = "ContentLayer"
+menuContentLayer.Size = UDim2.fromScale(1, 1)
+menuContentLayer.BackgroundTransparency = 1
+menuContentLayer.BorderSizePixel = 0
+menuContentLayer.ZIndex = 11
+menuContentLayer.Parent = menuFrame
+
 local menuScale = Instance.new("UIScale", menuFrame)
 menuScale.Scale = 1
+
+local function updateMenuScale()
+    local viewport = Camera and Camera.ViewportSize or Vector2.new(900, 700)
+    local targetW = LAYOUTS[CurrentLayout].X.Offset
+    local targetH = LAYOUTS[CurrentLayout].Y.Offset
+    local sx = (viewport.X - 24) / targetW
+    local sy = (viewport.Y - 24) / targetH
+    menuScale.Scale = math.clamp(math.min(sx, sy), 0.55, 1)
+end
+
+task.defer(updateMenuScale)
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    task.defer(updateMenuScale)
+end)
 
 Instance.new("UICorner", menuFrame).CornerRadius = UDim.new(0, 12)
 local menuStroke = Instance.new("UIStroke", menuFrame)
 menuStroke.Color = STROKE_CLR
 menuStroke.Thickness = 1
 
+local menuGradient = Instance.new("UIGradient")
+menuGradient.Rotation = 90
+menuGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.04),
+    NumberSequenceKeypoint.new(0.55, 0.10),
+    NumberSequenceKeypoint.new(1, 0.02),
+})
+menuGradient.Parent = menuFrame
+
 local header = Instance.new("Frame")
 header.Size = UDim2.new(1, 0, 0, 40)
 header.BackgroundColor3 = BG_HEADER
+header.BackgroundTransparency = 0.18
 header.BorderSizePixel = 0
 header.ZIndex = 11
 header.Parent = menuFrame
@@ -370,6 +432,7 @@ local tabBar = Instance.new("Frame")
 tabBar.Size = UDim2.new(1, 0, 0, 34)
 tabBar.Position = UDim2.new(0, 0, 0, 40)
 tabBar.BackgroundColor3 = BG_TAB
+tabBar.BackgroundTransparency = 0.18
 tabBar.BorderSizePixel = 0
 tabBar.ZIndex = 11
 tabBar.Parent = menuFrame
@@ -463,6 +526,7 @@ local function createBlock(parent, order, titulo)
     block.Size = UDim2.new(1, -8, 0, 0)
     block.AutomaticSize = Enum.AutomaticSize.Y
     block.BackgroundColor3 = BG_BLOCK
+block.BackgroundTransparency = 0.20
     block.BorderSizePixel = 0
     block.LayoutOrder = order
     block.Parent = parent
@@ -497,6 +561,7 @@ local function createToggle(parent, order, label, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 32)
     row.BackgroundColor3 = BG_ROW
+row.BackgroundTransparency = 0.18
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -548,6 +613,7 @@ local function createOptionRow(parent, order, label, options, initial, onChange)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, 0, 0, 34)
     row.BackgroundColor3 = BG_ROW
+row.BackgroundTransparency = 0.18
     row.BorderSizePixel = 0
     row.LayoutOrder = order
     row.Parent = parent
@@ -697,6 +763,7 @@ local function createButton(parent, order, label, onClick)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, 0, 0, 34)
     btn.BackgroundColor3 = Color3.fromRGB(34, 34, 42)
+    btn.BackgroundTransparency = 0.18
     btn.BorderSizePixel = 0
     btn.Text = label
     btn.Font = Enum.Font.GothamBold
@@ -749,7 +816,7 @@ local function Transp_Aplicar(ativar)
     if TranspState.ativo == ativar then return end
     TranspState.ativo = ativar
     if ativar then
-        menuFrame.BackgroundTransparency = 0.4
+        menuFrame.BackgroundTransparency = 0.28
         for _, obj in ipairs(menuFrame:GetDescendants()) do Transp_AplicarEm(obj) end
     else
         menuFrame.BackgroundTransparency = 0
@@ -2481,9 +2548,34 @@ createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
 end)
 
 -- BLOCO AUTO KILL (FLING)
-local killBlock = createBlock(funcContent, 2, "💥 AUTO KILL (FLING)")
+local quickBlock = createBlock(funcContent, 2, "⚡ AÇÕES RÁPIDAS")
 
-createToggle(killBlock, 2, "Auto Kill (fling)", false, function(v)
+createToggle(quickBlock, 2, "Auto Shoot Murderer", false, function(v)
+    if v then
+        FloatingState.AutoShootEnabled = true
+        showToast("AUTO SHOOT", "Botão flutuante habilitado para Sheriff.", SUCCESS_CLR)
+        setFloatingVisible(autoShootButton, getPlayerRole(LocalPlayer) == "Sheriff")
+    else
+        FloatingState.AutoShootEnabled = false
+        showToast("AUTO SHOOT", "Botão flutuante desativado.", DANGER_CLR)
+        setFloatingVisible(autoShootButton, false)
+    end
+end)
+
+createToggle(quickBlock, 3, "Auto Kill (sem TP/fling)", false, function(v)
+    FloatingState.AutoKillEnabled = v
+    if v then
+        showToast("AUTO KILL", "Modo sem TP/fling habilitado.", SUCCESS_CLR)
+        setFloatingVisible(autoKillButton, true)
+    else
+        showToast("AUTO KILL", "Botão flutuante desativado.", DANGER_CLR)
+        setFloatingVisible(autoKillButton, false)
+    end
+end)
+
+local killBlock = createBlock(funcContent, 3, "💥 AUTO KILL (FLING)")
+
+createToggle(killBlock, 2, "Auto Kill (fling) — existente", false, function(v)
     AutoFling_Set(v)
 end)
 
@@ -2532,12 +2624,28 @@ task.spawn(function()
 end)
 
 -- BLOCO UTILITÁRIOS
-local utilBlock = createBlock(funcContent, 3, "⚙️ UTILITÁRIOS")
+local utilBlock = createBlock(funcContent, 4, "⚙️ UTILITÁRIOS")
 createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
 createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
 createToggle(utilBlock, 4, "Touch Fling (quem encostar voa)", false, function(v) TouchFling_Set(v) end)
 
 selectTab("Principal")
+
+-- Camadas finais: imagem sempre atrás e conteúdo sempre à frente.
+menuBackground.ZIndex = 10
+menuBackgroundOverlay.ZIndex = 10
+for _, child in ipairs(menuFrame:GetChildren()) do
+    if child ~= menuBackground and child ~= menuBackgroundOverlay
+        and child ~= menuGradient and child ~= menuScale
+        and child:IsA("GuiObject") then
+        child.ZIndex = math.max(child.ZIndex, 11)
+    end
+end
+header.ZIndex = 20
+tabBar.ZIndex = 20
+contentArea.ZIndex = 20
+headerTitle.ZIndex = 21
+closeBtn.ZIndex = 21
 
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
@@ -2577,15 +2685,336 @@ Players.PlayerRemoving:Connect(function(p)
     espCache[p] = nil
 end)
 
+-- ═══════════ BOTÕES FLUTUANTES ═══════════
+local floatingGui = Instance.new("ScreenGui")
+floatingGui.Name = "AKZ_FloatingControls"
+floatingGui.ResetOnSpawn = false
+floatingGui.IgnoreGuiInset = true
+floatingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+pcall(function() floatingGui.Parent = CoreGui end)
+if not floatingGui.Parent then floatingGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+local function findSheriffTool()
+    local char = LocalPlayer.Character
+    local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+    local function scan(container)
+        if not container then return nil end
+        for _, obj in ipairs(container:GetChildren()) do
+            if obj:IsA("Tool") and checkKeyword(obj.Name, GUN_KEYWORDS) then
+                return obj
+            end
+        end
+        return nil
+    end
+    return scan(char) or scan(bp)
+end
+
+local function getMurdererTargetPart()
+    local best, bestDist = nil, math.huge
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    local myPos = myRoot and myRoot.Position
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and getPlayerRole(player) == "Murderer" then
+            local char = player.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if char and hum and hum.Health > 0 then
+                local part = char:FindFirstChild("UpperTorso")
+                    or char:FindFirstChild("Torso")
+                    or char:FindFirstChild("HumanoidRootPart")
+                    or char:FindFirstChild("Head")
+                if part then
+                    local d = myPos and (part.Position - myPos).Magnitude or 0
+                    if d < bestDist then
+                        best, bestDist = part, d
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function AutoShootMurderer_Once()
+    local myChar = LocalPlayer.Character
+    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if not myChar or not hum or hum.Health <= 0 then
+        showToast("AUTO SHOOT", "Personagem inválido.", DANGER_CLR)
+        return false
+    end
+
+    if getPlayerRole(LocalPlayer) ~= "Sheriff" then
+        showToast("AUTO SHOOT", "Você precisa estar como Sheriff.", WARN_CLR)
+        return false
+    end
+
+    local targetPart = getMurdererTargetPart()
+    if not targetPart then
+        showToast("AUTO SHOOT", "Nenhum Murderer válido encontrado.", WARN_CLR)
+        return false
+    end
+
+    local tool = findSheriffTool()
+    if not tool then
+        showToast("AUTO SHOOT", "Arma do Sheriff não encontrada.", DANGER_CLR)
+        return false
+    end
+
+    -- Reutiliza a mecânica normal da Tool. O script original não contém
+    -- RemoteEvent/RemoteFunction de disparo, então nenhum remote é inventado.
+    local oldCamera = Camera and Camera.CFrame
+    local ok = false
+
+    pcall(function()
+        if tool.Parent ~= myChar then
+            hum:EquipTool(tool)
+            task.wait()
+        end
+
+        local camPos = Camera.CFrame.Position
+        Camera.CFrame = CFrame.lookAt(camPos, targetPart.Position)
+
+        if typeof(tool.Activate) == "function" then
+            tool:Activate()
+            ok = true
+        end
+    end)
+
+    if oldCamera and Camera then
+        TweenService:Create(Camera, TweenInfo.new(0.08, Enum.EasingStyle.Quad), {
+            CFrame = oldCamera
+        }):Play()
+    end
+
+    return ok
+end
+
+local function AutoKillSemTP_Once()
+    -- O código original possui AutoKill por PivotTo/teleporte e Fling.
+    -- Para manter a exigência "sem TP/fling", só usamos uma Tool de ataque
+    -- já existente e não inventamos RemoteEvents.
+    local myChar = LocalPlayer.Character
+    local hum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+    if not myChar or not hum or hum.Health <= 0 then
+        showToast("AUTO KILL", "Personagem inválido.", DANGER_CLR)
+        return false
+    end
+
+    local knife
+    for _, container in ipairs({
+        myChar,
+        LocalPlayer:FindFirstChildOfClass("Backpack")
+    }) do
+        if container then
+            for _, obj in ipairs(container:GetChildren()) do
+                if obj:IsA("Tool") and checkKeyword(obj.Name, KNIFE_KEYWORDS) then
+                    knife = obj
+                    break
+                end
+            end
+        end
+        if knife then break end
+    end
+
+    if not knife then
+        showToast("AUTO KILL", "Faca/Tool existente não encontrada.", DANGER_CLR)
+        return false
+    end
+
+    -- O arquivo original não possui um remote de dano/kill à distância.
+    -- Não é seguro/tecnicamente correto fabricar um caminho inexistente.
+    if knife.Parent ~= myChar then
+        hum:EquipTool(knife)
+        task.wait()
+    end
+
+    local ok = pcall(function()
+        knife:Activate()
+    end)
+
+    if not ok then
+        showToast("AUTO KILL", "A Tool não aceita ativação remota.", WARN_CLR)
+    end
+    return ok
+end
+
+local function makeFloatingButton(name, title, position, accent, callback)
+    local old = FloatingState.Buttons[name]
+    if old and old.Parent then
+        old:Destroy()
+    end
+
+    local button = Instance.new("TextButton")
+    button.Name = "AKZ_" .. name
+    button.AnchorPoint = Vector2.new(0.5, 0.5)
+    button.Size = UDim2.fromOffset(58, 58)
+    button.Position = position
+    button.BackgroundColor3 = Color3.fromRGB(16, 16, 22)
+    button.BackgroundTransparency = 0.12
+    button.BorderSizePixel = 0
+    button.AutoButtonColor = false
+    button.Text = title
+    button.TextColor3 = TEXT
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.TextWrapped = true
+    button.Active = true
+    button.Visible = false
+    button.ZIndex = 100
+    button.Parent = floatingGui
+
+    Instance.new("UICorner", button).CornerRadius = UDim.new(1, 0)
+    local stroke = Instance.new("UIStroke", button)
+    stroke.Color = accent
+    stroke.Thickness = 1.8
+    stroke.Transparency = 0.25
+
+    local scale = Instance.new("UIScale", button)
+    scale.Scale = 1
+
+    local dragging = false
+    local moved = false
+    local dragStart
+    local startPos
+
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+
+        dragging = true
+        moved = false
+        dragStart = input.Position
+        startPos = button.Position
+
+        TweenService:Create(scale, TweenInfo.new(0.08), {Scale = 0.90}):Play()
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement
+            and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+
+        local delta = input.Position - dragStart
+        if delta.Magnitude >= FloatingDragThreshold then
+            moved = true
+        end
+
+        button.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then
+            return
+        end
+
+        if not dragging then return end
+        dragging = false
+
+        TweenService:Create(scale, TweenInfo.new(0.12, Enum.EasingStyle.Back), {Scale = 1}):Play()
+
+        if not moved then
+            callback()
+        end
+    end)
+
+    FloatingState.Buttons[name] = button
+    return button
+end
+
+local autoShootButton = makeFloatingButton(
+    "AutoShoot",
+    "SHOOT",
+    UDim2.new(1, -84, 0.62, 0),
+    Color3.fromRGB(70, 150, 255),
+    function()
+        local ok = AutoShootMurderer_Once()
+        stroke = nil
+        if autoShootButton and autoShootButton.Parent then
+            local st = autoShootButton:FindFirstChildOfClass("UIStroke")
+            if st then
+                st.Color = ok and SUCCESS_CLR or Color3.fromRGB(70, 150, 255)
+            end
+        end
+    end
+)
+
+local autoKillButton = makeFloatingButton(
+    "AutoKill",
+    "KILL",
+    UDim2.new(1, -84, 0.74, 0),
+    DANGER_CLR,
+    function()
+        local ok = AutoKillSemTP_Once()
+        if autoKillButton and autoKillButton.Parent then
+            local st = autoKillButton:FindFirstChildOfClass("UIStroke")
+            if st then
+                st.Color = ok and SUCCESS_CLR or DANGER_CLR
+            end
+        end
+    end
+)
+
+local function setFloatingVisible(button, visible)
+    if not button then return end
+    if visible then
+        button.Visible = true
+        local s = button:FindFirstChildOfClass("UIScale")
+        if s then
+            s.Scale = 0.7
+            TweenService:Create(s, TweenInfo.new(0.25, Enum.EasingStyle.Back), {Scale = 1}):Play()
+        end
+    else
+        local s = button:FindFirstChildOfClass("UIScale")
+        if s then
+            local tween = TweenService:Create(s, TweenInfo.new(0.18, Enum.EasingStyle.Quint), {Scale = 0.7})
+            tween:Play()
+            tween.Completed:Connect(function()
+                if button.Parent and not visible then button.Visible = false end
+            end)
+        else
+            button.Visible = false
+        end
+    end
+end
+
+local function updateFloatingButtonStates()
+    setFloatingVisible(autoShootButton, FloatingState.AutoShootEnabled and getPlayerRole(LocalPlayer) == "Sheriff")
+    setFloatingVisible(autoKillButton, FloatingState.AutoKillEnabled)
+end
+
+-- Botões ficam independentes do menu. O botão de Auto Shoot fica disponível
+-- durante a rodada quando o jogador é Sheriff.
+task.spawn(function()
+    while floatingGui.Parent do
+        task.wait(0.5)
+        local sheriff = getPlayerRole(LocalPlayer) == "Sheriff"
+        local shouldShow = FloatingState.AutoShootEnabled and sheriff
+        if shouldShow ~= autoShootButton.Visible then
+            setFloatingVisible(autoShootButton, shouldShow)
+        end
+    end
+end)
+
+-- ═══════════ ABERTURA DO MENU ═══════════
 local menuOpen = false
 local function openMenu()
     if menuOpen then return end
     menuOpen = true
     menuFrame.Visible = true
     menuFrame.Size = LAYOUTS[CurrentLayout]
-    menuScale.Scale = 0.75
+    local finalScale = menuScale.Scale
+    menuScale.Scale = math.max(0.42, finalScale * 0.75)
     menuFrame.Position = UDim2.new(0.5, 0, 0.5, 25)
-    TweenService:Create(menuScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale=1}):Play()
+    TweenService:Create(menuScale, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale=finalScale}):Play()
     TweenService:Create(menuFrame, TweenInfo.new(0.32, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
         Position = UDim2.new(0.5, 0, 0.5, 0)
     }):Play()
@@ -2647,4 +3076,4 @@ UserInputService.InputChanged:Connect(function(input)
     end
 end)
 
-print("[AKZ MENU mm2] v1.2 carregado 🔪")
+print("[AKZ MENU mm2] v2.0 Professional carregado 🔪")
