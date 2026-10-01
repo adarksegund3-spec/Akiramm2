@@ -2066,11 +2066,23 @@ local function FlingarAlvo(char, hrp, hum, alvo, origem)
         Vector3.new(0, 0, 0.8), Vector3.new(0, 0, -0.8), Vector3.new(0, 0.8, 0),
     }
 
-    -- põe seu root exatamente em cima do alvo (sem girar, sem velocidade persistente)
+    -- Murder (faca na mão): fica NAS COSTAS dele, só encostando de leve, olhando pro mesmo lado.
+    -- A faca fica à frente/na mão, então atrás você não é atingido.
+    local armado = (getPlayerRole(alvo) == "Murderer")
+    local costas = {
+        Vector3.new(0, 0, 0.9),    Vector3.new(0.2, 0.2, 0.85),
+        Vector3.new(-0.2, -0.2, 0.85), Vector3.new(0, 0.3, 0.8),
+    }
+
+    -- põe seu root no alvo (sem girar, sem velocidade persistente)
     local function colar()
         if not tHRP.Parent or not hrp.Parent then return end
         k = k + 1
-        hrp.CFrame = CFrame.new(tHRP.Position + offsets[(k % #offsets) + 1])
+        if armado then
+            hrp.CFrame = tHRP.CFrame * CFrame.new(costas[(k % #costas) + 1])
+        else
+            hrp.CFrame = CFrame.new(tHRP.Position + offsets[(k % #offsets) + 1])
+        end
     end
 
     local function voltarOrigem()
