@@ -1943,13 +1943,12 @@ local function FlingFoiLancado(tChar, tHum, tHRP, posInicial)
     return false
 end
 
--- Flinga UM alvo no esquema "bate e volta" (hit-and-run):
---   1) cola no alvo por uma rajada curta (BURST) com velocidade enorme
---   2) volta IMEDIATAMENTE pro seu ponto de origem e zera tudo
---   3) confere se o alvo foi lançado; se não, repete
--- Assim você nunca acompanha a vítima pra fora do mapa (era isso que te matava junto).
-local FLING_BURST = 0.25
-
+-- Flinga UM alvo usando o MESMO truque do Touch Fling (que já funciona no seu jogo):
+--   Heartbeat      -> você é posto em cima do alvo e a velocidade é inflada (pico que vai pra rede)
+--   RenderStepped  -> a velocidade volta ao normal localmente (você não voa)
+--   Stepped        -> mini variação de velocidade (anti-cancelamento)
+-- Diferença pro Touch Fling: em vez de esperar alguém encostar, você é colado no alvo.
+-- Assim que o alvo é lançado/morre/some, você volta na hora pro seu ponto de origem.
 local function FlingarAlvo(char, hrp, hum, alvo, origem)
     local tChar = alvo.Character
     local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
@@ -1960,24 +1959,17 @@ local function FlingarAlvo(char, hrp, hum, alvo, origem)
     local posInicial = tHRP.Position
     local t0 = tick()
     local lancou = false
-    local i, ang = 0, 0
+    local k, ang, mov = 0, 0, 0.1
     local offsets = {
-        Vector3.new(0, 0, 0),    Vector3.new(0, 1.2, 0),  Vector3.new(0, -1.2, 0),
-        Vector3.new(1.2, 0, 0),  Vector3.new(-1.2, 0, 0),
-        Vector3.new(0, 0, 1.2),  Vector3.new(0, 0, -1.2),
+        Vector3.new(0, 0, 0),   Vector3.new(0.8, 0, 0), Vector3.new(-0.8, 0, 0),
+        Vector3.new(0, 0, 0.8), Vector3.new(0, 0, -0.8), Vector3.new(0, 0.8, 0),
     }
 
+    -- põe seu root exatamente em cima do alvo (sem girar, sem velocidade persistente)
     local function colar()
         if not tHRP.Parent or not hrp.Parent then return end
-        local vel = tHRP.AssemblyLinearVelocity
-        local lead = Vector3.new(vel.X, 0, vel.Z)
-        if lead.Magnitude > 40 then lead = lead.Unit * 40 end
-        i = i + 1
-        ang = ang + 137
-        hrp.CFrame = CFrame.new(tHRP.Position + lead * 0.05 + offsets[(i % #offsets) + 1])
-            * CFrame.Angles(math.rad(ang), math.rad(ang * 0.7), 0)
-        hrp.AssemblyLinearVelocity  = Vector3.new(9e7, 9e8, 9e7)
-        hrp.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
+        k = k + 1
+        hrp.CFrame = CFrame.new(tHRP.Position + offsets[(k % #offsets) + 1])
     end
 
     local function voltarOrigem()
@@ -1991,42 +1983,34 @@ local function FlingarAlvo(char, hrp, hum, alvo, origem)
         ZerarVelocidade(hrp)
     end
 
-    while not lancou do
-        if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
-        if (tick() - t0) > FlingConfig.TempoMax then break end
+    local okLoop, errLoop = pcall(function()
+        while true do
+            if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
+            if (tick() - t0) > FlingConfig.TempoMax then break end
+            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; break end
 
-        -- rajada curta colado no alvo
-        local c1, c2
-        local bv = Instance.new("BodyVelocity")
-        bv.Velocity = Vector3.zero
-        bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
-        bv.Parent = hrp
-        pcall(function()
+            -- 1) Heartbeat: cola no alvo + pico de velocidade (horizontal girando + vertical)
+            RunService.Heartbeat:Wait()
             colar()
-            c1 = RunService.Stepped:Connect(colar)
-            c2 = RunService.Heartbeat:Connect(colar)
-            local tb = tick()
-            while (tick() - tb) < FLING_BURST do
-                if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
-                if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; break end
-                RunService.Heartbeat:Wait()
-            end
-        end)
-        if c1 then c1:Disconnect() end
-        if c2 then c2:Disconnect() end
-        pcall(function() bv:Destroy() end)
+            ang = ang + 1.3
+            hrp.AssemblyLinearVelocity = Vector3.new(math.cos(ang) * 1e7, 1e7, math.sin(ang) * 1e7)
 
-        -- volta na hora pro seu lugar (nunca fica perto da vítima)
-        voltarOrigem()
+            -- 2) RenderStepped: velocidade volta ao normal (você não voa) e continua colado
+            RunService.RenderStepped:Wait()
+            colar()
+            hrp.AssemblyLinearVelocity = Vector3.zero
 
-        -- dá um instante pra física do alvo reagir e confere de novo
-        if not lancou then
-            task.wait(0.08)
-            if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true end
+            -- 3) Stepped: mini variação
+            RunService.Stepped:Wait()
+            colar()
+            hrp.AssemblyLinearVelocity = Vector3.new(0, mov, 0)
+            mov = -mov
         end
-    end
+    end)
+    if not okLoop then warn("[FLING] erro: " .. tostring(errLoop)) end
 
-    ZerarVelocidade(hrp)
+    -- volta na hora pro seu lugar (nunca fica perto da vítima)
+    voltarOrigem()
     return lancou
 end
 
@@ -2053,7 +2037,7 @@ local function FlingCiclo(silencioso)
     local origem = hrp.CFrame
     if not silencioso then showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR) end
 
-    pcall(function()
+    local okCiclo, errCiclo = pcall(function()
         for _, alvo in ipairs(alvos) do
             if FlingConfig.Cancelar or not hrp.Parent or hum.Health <= 0 then break end
             FlingConfig.AlvoAtual = alvo.DisplayName
@@ -2061,6 +2045,10 @@ local function FlingCiclo(silencioso)
         end
     end)
     FlingConfig.AlvoAtual = nil
+    if not okCiclo then
+        warn("[FLING] erro: " .. tostring(errCiclo))
+        showToast("FLING (erro)", tostring(errCiclo):sub(1, 70), DANGER_CLR)
+    end
 
     -- garantia final: você termina parado exatamente onde começou
     pcall(function()
