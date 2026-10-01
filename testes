@@ -1836,31 +1836,43 @@ local function AcharGunMaisProxima()
     return melhor
 end
 
+local function ZerarVelocidade(hrp)
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end)
+end
+
+local PegandoGun = false
 local function PegarGun()
+    if PegandoGun then return end
     local gun = AcharGunMaisProxima()
     if not gun then
         showToast("PEGAR GUN", "Nenhuma gun encontrada", DANGER_CLR)
         return
     end
-
     local char = LocalPlayer.Character
-    if not char then return end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return end
 
-    -- Guarda exatamente onde estava para voltar imediatamente.
-    local origem = char:GetPivot()
-    local velocidade = hrp.AssemblyLinearVelocity
-    local velocidadeAngular = hrp.AssemblyAngularVelocity
+    PegandoGun = true
+    local origem = hrp.CFrame
+    local destino = CFrame.new(gun.Position + Vector3.new(0, 2.5, 0))
 
-    local pos = gun.Position + Vector3.new(0, 2.5, 0)
+    local function temGun()
+        local bp = LocalPlayer:FindFirstChildOfClass("Backpack")
+        for _, c in ipairs({char, bp}) do
+            if c then
+                for _, o in ipairs(c:GetChildren()) do
+                    if o:IsA("Tool") and checkKeyword(o.Name, GUN_KEYWORDS) then return true end
+                end
+            end
+        end
+        return false
+    end
 
-    pcall(function()
-        char:PivotTo(CFrame.new(pos))
-    end)
-
-    -- Janela mínima só para registrar o toque da gun.
+    -- vai, encosta na gun e já volta (rapidinho)
+    pcall(function() char:PivotTo(destino) end)
     if firetouchinterest then
         pcall(function()
             firetouchinterest(hrp, gun, 0)
@@ -1868,78 +1880,178 @@ local function PegarGun()
         end)
     end
 
-    -- Volta para a posição original sem ficar visível por muito tempo.
-    pcall(function()
-        char:PivotTo(origem)
-        hrp.AssemblyLinearVelocity = velocidade
-        hrp.AssemblyAngularVelocity = velocidadeAngular
-    end)
+    local t0 = tick()
+    while tick() - t0 < 0.35 do
+        if temGun() then break end
+        pcall(function() char:PivotTo(destino) end)
+        if firetouchinterest and gun.Parent then
+            pcall(function()
+                firetouchinterest(hrp, gun, 0)
+                firetouchinterest(hrp, gun, 1)
+            end)
+        end
+        RunService.Heartbeat:Wait()
+    end
 
-    showToast("PEGAR GUN", "Gun coletada e posição restaurada", SUCCESS_CLR)
+    pcall(function() char:PivotTo(origem) end)
+    ZerarVelocidade(hrp)
+    PegandoGun = false
+    showToast("PEGAR GUN", temGun() and "Gun pega! Voltou pra onde estava" or "Voltou (gun não foi pega)", temGun() and SUCCESS_CLR or WARN_CLR)
 end
 
--- Ação one-shot: tenta derrubar o Sheriff usando impulso físico local.
-local function KillSheriffFling()
-    local char = LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
+--════════════ Fling real (kill por fling) ════════════
+local FlingConfig = {
+    Alvo        = "Sheriff", -- Sheriff | Murder | Inocentes | Todos
+    TempoMax    = 4,         -- segundos tentando flingar CADA alvo
+    DelayVolta  = 4,         -- segundos esperando antes de voltar pro lugar
+    Andando     = false,     -- fling em andamento
+    TouchAtivo  = false,     -- touch fling passivo ligado
+}
 
-    local sheriff = nil
-    local sheriffDist = math.huge
-
+local function FlingListarAlvos()
+    local lista = {}
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
-            local hum = p.Character:FindFirstChildOfClass("Humanoid")
-            local tHRP = p.Character:FindFirstChild("HumanoidRootPart")
-
-            if hum and hum.Health > 0 and tHRP and getPlayerRole(p) == "Sheriff" then
-                local dist = (tHRP.Position - hrp.Position).Magnitude
-                if dist < sheriffDist then
-                    sheriff = p
-                    sheriffDist = dist
-                end
+            local h = p.Character:FindFirstChildOfClass("Humanoid")
+            local r = p.Character:FindFirstChild("HumanoidRootPart")
+            if h and r and h.Health > 0 then
+                local role = getPlayerRole(p)
+                local ok = false
+                if FlingConfig.Alvo == "Todos" then ok = true
+                elseif FlingConfig.Alvo == "Sheriff"   and role == "Sheriff"  then ok = true
+                elseif FlingConfig.Alvo == "Murder"    and role == "Murderer" then ok = true
+                elseif FlingConfig.Alvo == "Inocentes" and role == "Innocent" then ok = true end
+                if ok then table.insert(lista, p) end
             end
         end
     end
+    return lista
+end
 
-    if not sheriff or not sheriff.Character then
-        showToast("KILL SHERIFF", "Nenhum Sheriff encontrado", DANGER_CLR)
+-- detecta se o alvo realmente foi lançado / saiu do mapa / morreu
+local function FlingFoiLancado(tChar, tHum, tHRP, posInicial)
+    if not tChar or not tChar.Parent then return true end      -- saiu do jogo/personagem sumiu
+    if not tHRP or not tHRP.Parent then return true end
+    if tHum and tHum.Health <= 0 then return true end          -- morreu
+    if (tHRP.Position - posInicial).Magnitude > 120 then return true end   -- voou longe
+    if tHRP.AssemblyLinearVelocity.Magnitude > 250 then return true end   -- em alta velocidade
+    if tHRP.Position.Y < (workspace.FallenPartsDestroyHeight + 80) then return true end -- caiu do mapa
+    return false
+end
+
+-- gruda no alvo girando em alta velocidade até ele ser lançado (ou estourar o tempo)
+local function FlingarAlvo(hrp, hum, alvo)
+    local tChar = alvo.Character
+    local tHum  = tChar and tChar:FindFirstChildOfClass("Humanoid")
+    local tHRP  = tChar and tChar:FindFirstChild("HumanoidRootPart")
+    if not tHRP then return false end
+
+    local posInicial = tHRP.Position
+    local bt = Instance.new("BodyThrust")
+    bt.Force = Vector3.new(9e8, 9e8, 9e8)
+    bt.Location = hrp.Position
+    bt.Parent = hrp
+
+    local offsets = {
+        CFrame.new(0, 1.5, 0), CFrame.new(0, -1.5, 0),
+        CFrame.new(2, 0, 0),   CFrame.new(-2, 0, 0),
+        CFrame.new(0, 0, 2),   CFrame.new(0, 0, -2),
+    }
+    local t0, i, lancou = tick(), 0, false
+
+    while (tick() - t0) < FlingConfig.TempoMax do
+        if not hrp.Parent or hum.Health <= 0 then break end
+        if FlingFoiLancado(tChar, tHum, tHRP, posInicial) then lancou = true; break end
+
+        i = i + 1
+        local vel = tHRP.AssemblyLinearVelocity
+        hrp.CFrame = CFrame.new(tHRP.Position + vel * 0.1)
+            * offsets[(i % #offsets) + 1]
+            * CFrame.Angles(math.rad(i * 90), 0, 0)
+        hrp.AssemblyLinearVelocity  = Vector3.new(9e7, 9e8, 9e7)
+        hrp.AssemblyAngularVelocity = Vector3.new(9e8, 9e8, 9e8)
+        RunService.Heartbeat:Wait()
+    end
+
+    pcall(function() bt:Destroy() end)
+    ZerarVelocidade(hrp)
+    return lancou
+end
+
+local function FlingKill()
+    if FlingConfig.Andando then return end
+
+    local char = LocalPlayer.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    if not hrp or not hum or hum.Health <= 0 then
+        showToast("FLING", "Seu personagem está morto", DANGER_CLR)
         return
     end
 
-    local targetHRP = sheriff.Character:FindFirstChild("HumanoidRootPart")
-    if not targetHRP then return end
-
-    local origem = char:GetPivot()
-    local origemVel = hrp.AssemblyLinearVelocity
-
-    -- Vai direto no alvo e aplica impulso por um instante.
-    pcall(function()
-        char:PivotTo(targetHRP.CFrame * CFrame.new(0, 0, 2))
-        hrp.AssemblyLinearVelocity = (targetHRP.Position - hrp.Position).Unit * 180 + Vector3.new(0, 45, 0)
-    end)
-
-    task.wait(0.08)
-
-    -- Tenta manter o contato/impulso por poucos frames.
-    for _ = 1, 5 do
-        if not targetHRP.Parent or not hrp.Parent then break end
-        pcall(function()
-            local dir = (targetHRP.Position - hrp.Position)
-            if dir.Magnitude > 0.01 then
-                hrp.AssemblyLinearVelocity = dir.Unit * 220 + Vector3.new(0, 55, 0)
-            end
-        end)
-        task.wait(0.03)
+    local alvos = FlingListarAlvos()
+    if #alvos == 0 then
+        showToast("FLING", "Nenhum alvo (" .. FlingConfig.Alvo .. ") vivo", DANGER_CLR)
+        return
     end
 
-    pcall(function()
-        char:PivotTo(origem)
-        hrp.AssemblyLinearVelocity = origemVel
-        hrp.AssemblyAngularVelocity = Vector3.zero
-    end)
+    FlingConfig.Andando = true
+    local origem = hrp.CFrame
+    showToast("💥 FLING", FlingConfig.Alvo .. " • " .. #alvos .. " alvo(s)", WARN_CLR)
 
-    showToast("KILL SHERIFF", "Fling executado em " .. sheriff.DisplayName, SUCCESS_CLR)
+    local lancados = 0
+    for _, alvo in ipairs(alvos) do
+        if not hrp.Parent or hum.Health <= 0 then break end
+        if alvo.Character then
+            if FlingarAlvo(hrp, hum, alvo) then lancados = lancados + 1 end
+        end
+    end
+
+    -- espera antes de voltar: fica parado (anchored) pra não ser lançado nem cair
+    if hrp.Parent and hum.Health > 0 then
+        ZerarVelocidade(hrp)
+        pcall(function() hrp.Anchored = true end)
+        task.wait(FlingConfig.DelayVolta)
+        pcall(function() hrp.Anchored = false end)
+
+        for _ = 1, 8 do
+            if hrp.Parent then
+                ZerarVelocidade(hrp)
+                pcall(function() char:PivotTo(origem) end)
+            end
+            RunService.Heartbeat:Wait()
+        end
+        if hrp.Parent then ZerarVelocidade(hrp) end
+    end
+
+    FlingConfig.Andando = false
+    showToast("FLING", lancados .. "/" .. #alvos .. " lançado(s) ✔", lancados > 0 and SUCCESS_CLR or WARN_CLR)
+end
+
+-- Touch Fling passivo: quem encostar em você é lançado
+local function TouchFling_Set(ativo)
+    if ativo == FlingConfig.TouchAtivo then return end
+    FlingConfig.TouchAtivo = ativo
+    if not ativo then return end
+    task.spawn(function()
+        local mov = 0.1
+        while FlingConfig.TouchAtivo do
+            RunService.Heartbeat:Wait()
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and not FlingConfig.Andando then
+                local vel = hrp.AssemblyLinearVelocity
+                pcall(function()
+                    hrp.AssemblyLinearVelocity = vel * 1e7 + Vector3.new(0, 1e7, 0)
+                end)
+                RunService.RenderStepped:Wait()
+                pcall(function() hrp.AssemblyLinearVelocity = vel end)
+                RunService.Stepped:Wait()
+                pcall(function() hrp.AssemblyLinearVelocity = vel + Vector3.new(0, mov, 0) end)
+                mov = -mov
+            end
+        end
+    end)
 end
 
 --════════════ Layout toggle ════════════
@@ -2208,12 +2320,8 @@ GunDrop_CountLbl.TextXAlignment = Enum.TextXAlignment.Center
 GunDrop_CountLbl.TextYAlignment = Enum.TextYAlignment.Center
 Instance.new("UICorner", GunDrop_CountLbl).CornerRadius = UDim.new(0, 8)
 
-createButton(gunBlock, 6, "📌  Pegar Gun (TP rápido)", function()
-    PegarGun()
-end)
-
-createButton(gunBlock, 7, "💥  Kill Sheriff (Fling)", function()
-    KillSheriffFling()
+createButton(gunBlock, 6, "📌  Pegar Gun (TP e volta)", function()
+    task.spawn(PegarGun)
 end)
 
 -- BLOCO AUTO KILL
@@ -2264,10 +2372,28 @@ task.spawn(function()
     end
 end)
 
+createOptionRow(killBlock, 6, "Alvo do fling", {"Sheriff", "Murder", "Inocentes", "Todos"}, FlingConfig.Alvo, function(v)
+    FlingConfig.Alvo = v
+    showToast("💥 FLING", "Alvo: " .. v, SUCCESS_CLR)
+end)
+
+createSlider(killBlock, 7, "Tempo por alvo (s)", 2, 8, FlingConfig.TempoMax, false, function(v)
+    FlingConfig.TempoMax = math.floor(v)
+end)
+
+createSlider(killBlock, 8, "Delay p/ voltar (s)", 1, 10, FlingConfig.DelayVolta, false, function(v)
+    FlingConfig.DelayVolta = math.floor(v)
+end)
+
+createButton(killBlock, 9, "💥  Fling Kill (1x)", function()
+    task.spawn(FlingKill)
+end)
+
 -- BLOCO UTILITÁRIOS
 local utilBlock = createBlock(funcContent, 3, "⚙️ UTILITÁRIOS")
 createToggle(utilBlock, 2, "Noclip", false, function(v) Noclip_Set(v) end)
 createToggle(utilBlock, 3, "Anti-AFK", false, function(v) AntiAFK_Set(v) end)
+createToggle(utilBlock, 4, "Touch Fling (quem encostar voa)", false, function(v) TouchFling_Set(v) end)
 
 selectTab("Principal")
 
