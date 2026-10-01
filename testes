@@ -1912,23 +1912,89 @@ local FlingConfig = {
     FPDH        = workspace.FallenPartsDestroyHeight,
 }
 
+-- Limites (caixa) do mapa da partida, a partir do CoinContainer (o mesmo que o Farm usa).
+-- Quem está no lobby/spawn fica FORA dessa caixa. Guardado em cache enquanto o mapa existir.
+FlingConfig.MapaCache = nil
+function FlingConfig.LimitesMapa()
+    local container = Farm_PegarContainer()
+    if not container then return nil end
+    local raiz = container.Parent
+    if not raiz or raiz == workspace then raiz = container end
+
+    local c = FlingConfig.MapaCache
+    if c and c.raiz == raiz and raiz.Parent then return c.min, c.max end
+
+    local mn, mx
+    for _, d in ipairs(raiz:GetDescendants()) do
+        if d:IsA("BasePart") then
+            local pos = d.Position
+            if not mn then
+                mn, mx = pos, pos
+            else
+                mn = Vector3.new(math.min(mn.X, pos.X), math.min(mn.Y, pos.Y), math.min(mn.Z, pos.Z))
+                mx = Vector3.new(math.max(mx.X, pos.X), math.max(mx.Y, pos.Y), math.max(mx.Z, pos.Z))
+            end
+        end
+    end
+    if not mn then return nil end
+    local margem = Vector3.new(80, 150, 80)
+    mn, mx = mn - margem, mx + margem
+    FlingConfig.MapaCache = { raiz = raiz, min = mn, max = mx }
+    return mn, mx
+end
+
+-- Identificador "está em partida?":
+--   Sheriff e Murderer -> sempre (só existem em partida)
+--   Inocente           -> só se estiver dentro da caixa do mapa (lobby/spawn fica de fora)
+--   Sem mapa achado    -> inocente só conta se estiver a até 350 studs do murder/sheriff
+function FlingConfig.EmPartida(role, pos, ancoras)
+    if role == "Sheriff" or role == "Murderer" then return true end
+    local mn, mx = FlingConfig.LimitesMapa()
+    if mn then
+        return pos.X >= mn.X and pos.X <= mx.X
+           and pos.Y >= mn.Y and pos.Y <= mx.Y
+           and pos.Z >= mn.Z and pos.Z <= mx.Z
+    end
+    for _, a in ipairs(ancoras) do
+        if (a - pos).Magnitude <= 350 then return true end
+    end
+    return false
+end
+
 local function FlingListarAlvos()
-    local lista = {}
+    local ordem = { Sheriff = 1, Murderer = 2, Innocent = 3 }
+    local candidatos, ancoras = {}, {}
+
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= LocalPlayer and p.Character then
             local h = p.Character:FindFirstChildOfClass("Humanoid")
             local r = p.Character:FindFirstChild("HumanoidRootPart")
             if h and r and h.Health > 0 then
                 local role = getPlayerRole(p)
-                local ok = false
-                if FlingConfig.Alvo == "Todos" then ok = true
-                elseif FlingConfig.Alvo == "Sheriff"   and role == "Sheriff"  then ok = true
-                elseif FlingConfig.Alvo == "Murder"    and role == "Murderer" then ok = true
-                elseif FlingConfig.Alvo == "Inocentes" and role == "Innocent" then ok = true end
-                if ok then table.insert(lista, p) end
+                table.insert(candidatos, { p = p, role = role, pos = r.Position })
+                if role ~= "Innocent" then table.insert(ancoras, r.Position) end
             end
         end
     end
+
+    local alvo = FlingConfig.Alvo
+    local escolhidos = {}
+    for _, c in ipairs(candidatos) do
+        local ok = false
+        if     alvo == "Todos"     then ok = true -- Sheriff + Murder + Inocentes (só quem está em partida)
+        elseif alvo == "Sheriff"   then ok = (c.role == "Sheriff")
+        elseif alvo == "Murder"    then ok = (c.role == "Murderer")
+        elseif alvo == "Inocentes" then ok = (c.role == "Innocent") end
+        if ok and FlingConfig.EmPartida(c.role, c.pos, ancoras) then
+            table.insert(escolhidos, c)
+        end
+    end
+
+    -- ordem: Sheriff primeiro (a gun dropa), depois Murder, depois Inocentes
+    table.sort(escolhidos, function(x, y) return ordem[x.role] < ordem[y.role] end)
+
+    local lista = {}
+    for _, c in ipairs(escolhidos) do table.insert(lista, c.p) end
     return lista
 end
 
